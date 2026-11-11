@@ -249,6 +249,8 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   <p><strong>Founding price: $149</strong> one time for the scan and
   fix plan · <strong>$39/month</strong> monitoring with re-scan alerts.</p>
   <a class="btn" href="/scan">Run a scan</a>
+  <a class="btn" href="https://buy.stripe.com/00w9AMaJj76fbCu6AQ5Rm03">Buy the scan — $149</a>
+  <a class="btn" href="https://buy.stripe.com/9B66oAg3DgGP0XQ7EU5Rm04">Add monitoring — $39/month</a>
 </div>
 
 <div class="card">
@@ -279,10 +281,10 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   with scheduled re-scans so the state you attested to stays true
   between renewals.</p>
   <p><strong>Founding price: $49/month</strong> for the full bundle.</p>
+  <a class="btn" href="https://buy.stripe.com/9B600cdVv1LV9umgbq5Rm05">Subscribe — $49/month</a>
   <p class="small">Founding prices are the introductory prices for the
-  first cohort. This site takes no payment yet — checkout opens when
-  the founding cohort launches. Join the list below and founding
-  pricing is locked for you.</p>
+  first cohort, and checkout is open now. Join the list below and
+  founding pricing is locked for you.</p>
 </div>
 
 <div class="card">
