@@ -240,6 +240,15 @@ def main():
               bool(home_desc))
         check("seo: homepage carries og:title",
               'property="og:title"' in raw_home)
+        check("seo: homepage carries the google-site-"
+              "verification meta",
+              '<meta name="google-site-verification" '
+              'content="zSL9EpgwpfB0zGLIYpzCE0gk8uuYKcNteYM6LHS__MY">'
+              in raw_home)
+        check("seo: homepage carries the msvalidate.01 meta",
+              '<meta name="msvalidate.01" '
+              'content="5A6E6E3DD0931B9DB02307A62305125F">'
+              in raw_home)
         check("seo: homepage canonical is the production root",
               '<link rel="canonical" '
               'href="https://tenantcheck365.ca/">' in raw_home)
