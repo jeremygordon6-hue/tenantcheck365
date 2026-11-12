@@ -67,6 +67,8 @@ PRODUCT = "TenantCheck 365"
 HONESTY_LINE = ("TenantCheck 365 prepares evidence. It does not certify "
                 "compliance and is not legal or insurance advice.")
 
+BASE_URL = "https://tenantcheck365.ca"
+
 REQUIRED_LIST_SECTIONS = ("users", "inboxRules", "oauthGrants")
 REQUIRED_DICT_SECTIONS = ("tenantSettings", "securityControls")
 
@@ -166,13 +168,171 @@ footer.site { max-width: 880px; margin: 0 auto; padding: 0 20px 40px;
 """
 
 
-def page(title, body):
+# ---------------------------------------------------------------------------
+# Search and sharing metadata (SEO)
+# ---------------------------------------------------------------------------
+
+# Per-page metadata, keyed by the title each page passes to page().
+# "path" is the page's canonical public path. The scan results view
+# has a per-record URL, so it carries a description but no canonical.
+PAGE_SEO = {
+    "Microsoft 365 security check for small firms": {
+        "path": "/",
+        "description":
+            "A Microsoft 365 security check for small firms with no "
+            "IT person: MFA gaps, risky app grants and insurer-ready "
+            "evidence. We never ask for your password.",
+    },
+    "Run a scan": {
+        "path": "/scan",
+        "description":
+            "Run a TenantCheck 365 scan: upload an exported tenant "
+            "snapshot and get an owner-approved fix plan, a ranked "
+            "app-grant inventory, and insurer evidence.",
+    },
+    "How to export your tenant snapshot": {
+        "path": "/how-to-export",
+        "description":
+            "Export your Microsoft 365 tenant snapshot in about 10 "
+            "minutes: a guided script runs on your own computer with "
+            "read-only permissions. No password needed.",
+    },
+    "The live connection": {
+        "path": "/live-connection",
+        "description":
+            "How the TenantCheck 365 live connection will work: an "
+            "app registration, read-only permissions, and consent "
+            "granted by your own admin. No passwords, ever.",
+    },
+    "Connect your tenant": {
+        "path": "/connect",
+        "description":
+            "Connect your Microsoft 365 tenant: your own Global "
+            "Administrator grants or refuses read-only consent only "
+            "on Microsoft's own consent screen, never ours.",
+    },
+    "Scan results": {
+        "description":
+            "Your TenantCheck 365 scan results: hardening findings "
+            "and fix steps, a ranked inventory of app grants, and "
+            "insurer questions mapped from the same scan.",
+    },
+}
+
+# The public GET pages a crawler may index — never result views,
+# report downloads or the export-script download, whose URLs are
+# per-record or file downloads.
+SITEMAP_PATHS = ["/", "/scan", "/how-to-export", "/live-connection",
+                 "/connect"]
+
+
+def sitemap_xml():
+    urls = "".join(f"  <url><loc>{BASE_URL}{p}</loc></url>\n"
+                   for p in SITEMAP_PATHS)
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/'
+            'sitemap/0.9">\n' + urls + "</urlset>\n")
+
+
+def robots_txt():
+    return ("User-agent: *\nAllow: /\n"
+            f"Sitemap: {BASE_URL}/sitemap.xml\n")
+
+
+def _json_ld(data):
+    return ('<script type="application/ld+json">'
+            + json.dumps(data, ensure_ascii=False) + "</script>")
+
+
+def home_json_ld():
+    """Homepage structured data: the organization, plus a FAQ whose
+    answers restate only facts and prices already shown on the page
+    (the module cards and the how-it-works copy)."""
+    org = {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": PRODUCT,
+        "url": BASE_URL + "/",
+        "description": PAGE_SEO[
+            "Microsoft 365 security check for small firms"
+        ]["description"],
+    }
+    faq_pairs = [
+        ("What does a TenantCheck 365 scan check?",
+         "Accounts without MFA (admins flagged critical), legacy "
+         "authentication still enabled, inbox rules quietly "
+         "forwarding mail outside the business, anonymous file "
+         "sharing, too many Global Administrators, dormant admin "
+         "accounts, broad guest access, and weak password policy — "
+         "plus an inventory of every third-party app grant and 13 "
+         "cyber-insurance questions."),
+        ("Do I have to give TenantCheck 365 my Microsoft password?",
+         "No. There is no Microsoft sign-in anywhere in this app, "
+         "and your Microsoft username or password is never asked "
+         "for. The scan runs on an exported tenant snapshot, and the "
+         "live connection works only through an app registration "
+         "plus consent granted by your own administrator."),
+        ("How does TenantCheck 365 help with cyber insurance?",
+         "InsureReady 365 maps the same scan to the 13 questions a "
+         "typical Canadian cyber-insurance renewal asks — MFA, "
+         "legacy auth, EDR coverage, tested backups, admin limits, "
+         "training, incident response — each answered Supported, "
+         "Gap, or Evidence missing, with the evidence attached. "
+         "Where the tenant data cannot support an answer, the pack "
+         "says so instead of guessing."),
+        ("How much does TenantCheck 365 cost?",
+         "Founding prices shown on this page: $149 one time for the "
+         "scan and fix plan, $39/month for monitoring with re-scan "
+         "alerts, and $49/month for the full bundle of all three "
+         "modules."),
+    ]
+    faq = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {"@type": "Question", "name": q,
+             "acceptedAnswer": {"@type": "Answer", "text": a}}
+            for q, a in faq_pairs],
+    }
+    return _json_ld(org) + "\n" + _json_ld(faq)
+
+
+def page(title, body, extra_head=""):
+    full_title = f"{title} — {PRODUCT}"
+    seo = PAGE_SEO.get(title, {})
+    description = seo.get("description")
+    path = seo.get("path")
+    head_extra = ""
+    if description:
+        head_extra += (f'\n<meta name="description" '
+                       f'content="{escape(description, quote=True)}">')
+    if path:
+        head_extra += (f'\n<link rel="canonical" '
+                       f'href="{BASE_URL}{path}">')
+    if description:
+        head_extra += (
+            f'\n<meta property="og:title" '
+            f'content="{escape(full_title, quote=True)}">'
+            f'\n<meta property="og:description" '
+            f'content="{escape(description, quote=True)}">'
+            '\n<meta property="og:type" content="website">')
+        if path:
+            head_extra += (f'\n<meta property="og:url" '
+                           f'content="{BASE_URL}{path}">')
+        head_extra += (
+            '\n<meta name="twitter:card" content="summary">'
+            f'\n<meta name="twitter:title" '
+            f'content="{escape(full_title, quote=True)}">'
+            f'\n<meta name="twitter:description" '
+            f'content="{escape(description, quote=True)}">')
+    if extra_head:
+        head_extra += "\n" + extra_head
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{escape(title)} — {PRODUCT}</title>
+<title>{escape(full_title)}</title>{head_extra}
 <style>{CSS}</style>
 </head>
 <body>
@@ -331,7 +491,8 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
 <p class="small">{HONESTY_LINE} Every finding is an issue to review,
 found by deterministic checks — never a certification.</p>
 """
-    return page("Microsoft 365 security, checked", body)
+    return page("Microsoft 365 security check for small firms", body,
+                extra_head=home_json_ld())
 
 
 # ---------------------------------------------------------------------------
@@ -1051,6 +1212,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             joined = query.get("joined", [""])[0] == "1"
             self._send(200, landing_page(joined=joined))
+        elif path == "/sitemap.xml":
+            self._send(200, sitemap_xml(),
+                       content_type="application/xml; charset=utf-8")
+        elif path == "/robots.txt":
+            self._send(200, robots_txt(),
+                       content_type="text/plain; charset=utf-8")
         elif path == "/scan":
             self._send(200, scan_page())
         elif path == "/how-to-export":
