@@ -302,7 +302,11 @@ def page(title, body, extra_head=""):
     seo = PAGE_SEO.get(title, {})
     description = seo.get("description")
     path = seo.get("path")
-    head_extra = ""
+    head_extra = (
+        '\n<meta name="google-site-verification" '
+        'content="zSL9EpgwpfB0zGLIYpzCE0gk8uuYKcNteYM6LHS__MY">'
+        '\n<meta name="msvalidate.01" '
+        'content="5A6E6E3DD0931B9DB02307A62305125F">')
     if description:
         head_extra += (f'\n<meta name="description" '
                        f'content="{escape(description, quote=True)}">')
