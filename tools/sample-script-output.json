@@ -1,0 +1,173 @@
+{
+  "_meta": {
+    "fictional": false,
+    "firm_name": "Fixture Accounting Co.",
+    "firm_size_seats": 4,
+    "label": "Exported from a live tenant by tenantcheck-export.ps1, run by the firm's own admin. Findings cover only what the export contains.",
+    "snapshot_date": "2026-11-11",
+    "source_shape": "Built by tools/tenantcheck-export.ps1 from Microsoft Graph (users, authentication method registrations, directory role assignments, inbox rules, OAuth2 permission grants, service principals, Conditional Access policies, organization) plus owner-stated answers entered during the script run."
+  },
+  "inboxRules": [
+    {
+      "deleteMessage": false,
+      "enabled": true,
+      "forwardTo": [],
+      "id": "fixture-rule-1",
+      "name": "",
+      "redirectTo": [],
+      "userDisplayName": "Tom Becker",
+      "userPrincipalName": "tom@fixtureaccounting.example"
+    }
+  ],
+  "oauthGrants": [
+    {
+      "appDisplayName": "ChatPDF Helper",
+      "clientId": "11111111-2222-3333-4444-555555555555",
+      "consentType": "Principal",
+      "consentedBy": "tom@fixtureaccounting.example",
+      "id": "fixture-grant-1",
+      "lastUsedDaysAgo": null,
+      "publisherVerified": false,
+      "resourceDisplayName": "Microsoft Graph",
+      "scopes": [
+        "Mail.Read",
+        "Files.Read.All",
+        "offline_access"
+      ]
+    },
+    {
+      "appDisplayName": "Microsoft Graph",
+      "clientId": "66666666-7777-3888-8999-000000000000",
+      "consentType": "AllPrincipals",
+      "consentedBy": null,
+      "id": "fixture-grant-2",
+      "lastUsedDaysAgo": null,
+      "publisherVerified": true,
+      "resourceDisplayName": "Microsoft Graph",
+      "scopes": [
+        "User.Read"
+      ]
+    }
+  ],
+  "securityControls": {
+    "automaticUpdatesEnabled": true,
+    "backupEnabled": true,
+    "backupLastSuccessfulDaysAgo": 2,
+    "backupLastTestRestoreDaysAgo": 45,
+    "conditionalAccessPolicyCount": 1,
+    "deviceEncryptionPercent": 0,
+    "edrCoveragePercent": 0,
+    "incidentResponsePlanDocumented": false,
+    "securityTrainingCompletionPercent": 90,
+    "securityTrainingLastMonthsAgo": 6
+  },
+  "tenantSettings": {
+    "externalSharingCapability": "ExistingExternalUserSharingOnly",
+    "legacyAuthProtocols": [
+      "POP3",
+      "IMAP4",
+      "Authenticated SMTP"
+    ],
+    "legacyAuthenticationEnabled": false,
+    "passwordPolicy": {
+      "complexityRequired": true,
+      "lockoutThreshold": 10,
+      "minimumLength": 8
+    }
+  },
+  "users": [
+    {
+      "accountEnabled": true,
+      "accountType": "member",
+      "authMethods": [
+        "microsoftAuthenticator"
+      ],
+      "department": "Owner",
+      "displayName": "Priya Shah",
+      "guestAccessLevel": null,
+      "id": "aaaaaaaa-1111-4000-8000-000000000001",
+      "lastSignInDaysAgo": 2,
+      "mfaRegistered": true,
+      "roles": [
+        "Global Administrator"
+      ],
+      "userPrincipalName": "priya@fixtureaccounting.example"
+    },
+    {
+      "accountEnabled": true,
+      "accountType": "member",
+      "authMethods": [],
+      "department": "Tax",
+      "displayName": "Tom Becker",
+      "guestAccessLevel": null,
+      "id": "aaaaaaaa-1111-4000-8000-000000000002",
+      "lastSignInDaysAgo": 5,
+      "mfaRegistered": false,
+      "roles": [],
+      "userPrincipalName": "tom@fixtureaccounting.example"
+    },
+    {
+      "accountEnabled": true,
+      "accountType": "member",
+      "authMethods": [
+        "phone"
+      ],
+      "department": "Bookkeeping",
+      "displayName": "Ana Ruiz",
+      "guestAccessLevel": null,
+      "id": "aaaaaaaa-1111-4000-8000-000000000003",
+      "lastSignInDaysAgo": 1,
+      "mfaRegistered": true,
+      "roles": [],
+      "userPrincipalName": "ana@fixtureaccounting.example"
+    },
+    {
+      "accountEnabled": true,
+      "accountType": "member",
+      "authMethods": [
+        "microsoftAuthenticator",
+        "fido2"
+      ],
+      "department": "IT (former)",
+      "displayName": "Sam Ortiz",
+      "guestAccessLevel": null,
+      "id": "aaaaaaaa-1111-4000-8000-000000000004",
+      "lastSignInDaysAgo": 140,
+      "mfaRegistered": true,
+      "roles": [
+        "Global Administrator"
+      ],
+      "userPrincipalName": "sam@fixtureaccounting.example"
+    },
+    {
+      "accountEnabled": false,
+      "accountType": "member",
+      "authMethods": [],
+      "department": null,
+      "displayName": "Derek Hale",
+      "guestAccessLevel": null,
+      "id": "aaaaaaaa-1111-4000-8000-000000000005",
+      "lastSignInDaysAgo": null,
+      "mfaRegistered": false,
+      "roles": [
+        "Global Administrator"
+      ],
+      "userPrincipalName": "derek@fixtureaccounting.example"
+    },
+    {
+      "accountEnabled": true,
+      "accountType": "guest",
+      "authMethods": [
+        "microsoftAuthenticator"
+      ],
+      "department": "External bookkeeper",
+      "displayName": "Mia Chen",
+      "guestAccessLevel": null,
+      "id": "aaaaaaaa-1111-4000-8000-000000000006",
+      "lastSignInDaysAgo": 20,
+      "mfaRegistered": true,
+      "roles": [],
+      "userPrincipalName": "mia_external@bookkeepingpartner.example"
+    }
+  ]
+}
