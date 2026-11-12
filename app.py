@@ -17,13 +17,17 @@ All checking logic is the verified prototype engine in m365.py,
 imported and reused, not rewritten (the engine file is a byte-identical
 copy of ../m365-cluster/m365.py, verified 40/40 on the demo snapshot).
 
-SCAN INPUT — HONEST BY DESIGN: this version runs on an EXPORTED tenant
+SCAN INPUT — HONEST BY DESIGN: scans run on an EXPORTED tenant
 snapshot (JSON shaped like Microsoft Graph responses) that the visitor
-uploads, or on the fictional demo tenant. It does NOT connect to
-Microsoft Graph, it does NOT sign anyone into Microsoft, and it never
-collects Microsoft credentials. A live connection needs an Azure app
-registration and tenant admin consent granted by the customer's own
-administrator — that is the next step, described on /live-connection.
+uploads, or on the fictional demo tenant. The live Microsoft Graph
+connection code (graph_connect.py) is built but INACTIVE until the
+product owner configures the app registration described in
+SETUP-GRAPH.md: while the TENANTCHECK_MS_* environment variables are
+absent, /connect refuses gracefully and /live-connection reports that
+setup is pending. The app never collects Microsoft passwords; live
+access works through an app registration plus tenant admin consent
+granted by the customer's own administrator, and the client secret
+exists only in an environment variable, never on disk.
 
 Honesty rule (product requirement): TenantCheck 365 prepares evidence.
 It does not certify compliance and is not legal or insurance advice.
@@ -43,12 +47,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import m365  # the verified prototype engine (copied in byte-identical)
+import graph_connect  # live Microsoft Graph connection (inactive
+                      # until the TENANTCHECK_MS_* env vars are set)
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(APP_DIR, "data")
 FOUNDING_PATH = os.path.join(DATA_DIR, "founding.json")
 SCANS_PATH = os.path.join(DATA_DIR, "scans.json")
 DEMO_SNAPSHOT_PATH = os.path.join(APP_DIR, "demo_snapshot.json")
+EXPORT_SCRIPT_PATH = os.path.join(APP_DIR, "tools",
+                                  "tenantcheck-export.ps1")
 
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8795"))
@@ -174,6 +182,7 @@ def page(title, body):
     <a href="/scan">Run a scan</a>
     <a href="/how-to-export">How to export</a>
     <a href="/live-connection">Live connection</a>
+    <a href="/connect">Connect</a>
   </nav>
 </header>
 <main>
@@ -370,12 +379,69 @@ def export_page():
 <p>The scan runs on one JSON file: a snapshot of your Microsoft 365
 tenant's settings, shaped like the responses of Microsoft's own
 Microsoft Graph API. It contains settings and account facts — never
-email contents, never passwords. This page is the honest, current
-export path. It is a manual assembly step today; the
-<a href="/live-connection">live connection</a> replaces it.</p>
+email contents, never passwords. There are two ways to produce it.
+Option A is the guided path and takes about 10 minutes. Option B is
+the manual assembly it replaced, kept as a fallback. Either way,
+nothing connects to your tenant from this site — the
+<a href="/live-connection">live connection</a> is a separate, later
+step.</p>
 
 <div class="card">
-  <h2>Where each part comes from</h2>
+  <h2>Option A — run the export script (about 10 minutes)</h2>
+  <p>A small PowerShell script runs on <strong>your own
+  computer</strong>, signed in with <strong>your own admin
+  account</strong>. It reads the tenant settings the scan needs
+  through Microsoft's official Graph PowerShell tools, asks you the
+  handful of questions only you can answer, and writes one file,
+  <code>tenantcheck-snapshot.json</code>. The script sends nothing
+  anywhere — you upload the file yourself in step 5.</p>
+  <p><a class="btn" href="/export-script">Download the export script
+  (tenantcheck-export.ps1)</a></p>
+  <p><strong>1. What you need.</strong> A Windows computer, an admin
+  account for your own tenant (Global Administrator, or Global Reader
+  with reports access), and Microsoft's free Graph PowerShell module.
+  If the module is missing, the script stops and prints the one
+  install command — nothing to install from us.</p>
+  <p><strong>2. Run it.</strong> Save the download, open PowerShell in
+  that folder, and run:
+  <code>powershell -ExecutionPolicy Bypass -File
+  .\tenantcheck-export.ps1</code>. The Bypass flag applies to this
+  one run only; the script itself is plain text and you can read
+  every line before running it.</p>
+  <p><strong>3. Sign in — to Microsoft, not to us.</strong> A
+  Microsoft sign-in window opens. You sign in with your own admin
+  account and approve a fixed list of <strong>read-only</strong>
+  permissions: user and directory reads, role assignments, policy
+  reads, the MFA registration report, sign-in activity, app consent
+  records, and inbox <em>rule definitions</em> (rule settings such as
+  forwarding targets — the script never reads message contents). The
+  script never sees, stores, or sends your password; no permission in
+  the list can change anything in your tenant.</p>
+  <p><strong>4. Answer the questions only you can answer.</strong>
+  Some insurance questions are about your devices and documents, not
+  tenant settings: backup restore tests, security training, a written
+  incident plan. The script asks for those directly. Pressing Enter
+  for "don't know" is a real answer — the scan then shows a gap to
+  review for that item instead of a pass, and the script lists every
+  default it used before it finishes.</p>
+  <p><strong>5. Upload the file.</strong> The script writes
+  <code>tenantcheck-snapshot.json</code> next to itself. Upload it on
+  the <a href="/scan">scan page</a> and review your three reports.
+  Fixes are listed as steps in an owner-approved plan; this tool
+  applies nothing.</p>
+  <p class="small">Two honest limits of the script: Microsoft does not
+  expose when each third-party app grant was last used, so grants are
+  scored without a dormancy guess; and it cannot see how broadly a
+  guest account can reach, so guests are never flagged on a guess —
+  both facts are stated in the script itself.</p>
+</div>
+
+<div class="card">
+  <h2>Option B — assemble the export manually</h2>
+  <p>If you would rather build the file by hand, the snapshot is one
+  JSON object with the sections below. The demo tenant on this site
+  is a complete example of the exact shape — run the demo scan and
+  download its reports to see the format end to end.</p>
   <table>
     <tr><th>Snapshot section</th><th>What it holds</th>
         <th>Where it comes from</th></tr>
@@ -410,20 +476,6 @@ export path. It is a manual assembly step today; the
             records what you state, and anything unstated is reported
             as <em>evidence missing</em>, never assumed</td></tr>
   </table>
-</div>
-
-<div class="card">
-  <h2>The current process</h2>
-  <p><strong>1.</strong> Your admin, or whoever helps you with IT,
-  assembles the export as one JSON file using the sources above. The
-  demo tenant on this site is a complete example of the exact shape —
-  run the demo scan and download its reports to see the format end to
-  end.</p>
-  <p><strong>2.</strong> You upload the file on the
-  <a href="/scan">scan page</a>. Nothing is installed and there is no
-  Microsoft sign-in.</p>
-  <p><strong>3.</strong> You review the three reports. Fixes are listed
-  as steps in an owner-approved plan; this tool applies nothing.</p>
   <p>The shape, trimmed down, looks like this:</p>
   <pre class="sample">{{"users": [{{"userPrincipalName": "alex@yourbusiness.ca",
               "accountEnabled": true, "mfaRegistered": true,
@@ -445,20 +497,55 @@ export path. It is a manual assembly step today; the
 
 
 def live_connection_page():
-    body = f"""
-<h1>The live connection — how it will work</h1>
+    cfg = graph_connect.config()
+    if cfg["scan_ready"]:
+        status = f"""
 <div class="deadline">
-  <strong>Status, plainly:</strong> the live connection is the next
-  step. It is <strong>not switched on</strong> in this version.
-  {PRODUCT} runs today on an uploaded export
+  <strong>Status, plainly:</strong> setup is complete on this server —
+  the app registration is configured, so the live connection is
+  switched on. A tenant is connected only when its own Global
+  Administrator grants consent on the
+  <a href="/connect">connect page</a>; until that moment we can see
+  nothing of it. The export path (<a href="/how-to-export">how that
+  works</a>) remains available.
+</div>
+<p>Uploading an export works, but it is a snapshot of one day. The
+monitoring offer — re-scans that catch a new risky app grant or an MFA
+change between insurance renewals — needs a standing, read-only
+connection. This is exactly what the connection requires:</p>"""
+    else:
+        remaining = "".join(
+            f"<li><code>{escape(name)}</code></li>"
+            for name in cfg["missing_config"])
+        status = f"""
+<div class="deadline">
+  <strong>Status, plainly:</strong> setup is pending. The live
+  connection code is built, but it is <strong>not switched on</strong>
+  in this version because the app registration is not configured on
+  this server yet. {PRODUCT} runs today on an uploaded export
   (<a href="/how-to-export">how that works</a>) — nothing on this site
   connects to your tenant, and nothing here can.
+  <p>What remains, on the product owner's side:</p>
+  <ol>
+    <li>Register the app in Microsoft Entra ID (an Azure app
+    registration) with the redirect URI
+    <code>https://tenantcheck365.ca/connect/callback</code>.</li>
+    <li>Create a client secret on that registration.</li>
+    <li>Add these environment variables on the host (Render) and
+    restart the service:
+    <ul>{remaining}</ul></li>
+  </ol>
+  <p>Until then, the <a href="/connect">connect page</a> stays off and
+  says the same thing this page does.</p>
 </div>
 <p>Uploading an export works, but it is a snapshot of one day. The
 monitoring offer — re-scans that catch a new risky app grant or an MFA
 change between insurance renewals — needs a standing, read-only
 connection. This is exactly what that connection will require, so you
-can judge it before it exists:</p>
+can judge it before it exists:</p>"""
+    body = f"""
+<h1>The live connection — how it works</h1>
+{status}
 
 <div class="card">
   <h2>Step 1 — we register the app</h2>
@@ -498,6 +585,143 @@ can judge it before it exists:</p>
 <p class="small">{HONESTY_LINE}</p>
 """
     return page("The live connection", body)
+
+
+# ---------------------------------------------------------------------------
+# Live connection pages — admin consent flow (graph_connect.py)
+# ---------------------------------------------------------------------------
+
+def connect_page(message=None):
+    cfg = graph_connect.config()
+    notice = (f'<div class="notice">{escape(message)}</div>'
+              if message else "")
+    if not cfg["consent_ready"]:
+        remaining = "".join(
+            f"<li><code>{escape(name)}</code></li>"
+            for name in cfg["missing_config"])
+        body = f"""
+<h1>Connect your tenant</h1>
+{notice}
+<div class="deadline">
+  <strong>Setup is pending.</strong> The live connection is switched
+  off until the product owner finishes the app registration on this
+  server, so this page cannot start a consent and nothing has been
+  sent to Microsoft. What remains:
+  <ul>{remaining}</ul>
+  See <a href="/live-connection">how the live connection works</a>
+  for the full picture. In the meantime the
+  <a href="/scan">export-based scan</a> works exactly as before.
+</div>
+<p class="small">{HONESTY_LINE}</p>
+"""
+        return page("Connect your tenant", body)
+
+    consent_url, _state = graph_connect.admin_consent_url()
+    permissions = "".join(
+        f"<li>{escape(p)}</li>"
+        for p in graph_connect.READ_ONLY_PERMISSIONS)
+    connections = graph_connect.load_connections()
+    if connections:
+        rows = []
+        for conn in connections:
+            tenant_id = escape(conn.get("tenant_id", ""))
+            scan_control = ""
+            if cfg["scan_ready"]:
+                scan_control = f"""
+  <form method="post" action="/connect/scan">
+    <input type="hidden" name="tenant_id" value="{tenant_id}">
+    <button type="submit">Run a live scan for this tenant</button>
+  </form>"""
+            rows.append(f"""
+<div class="card">
+  <p>Tenant: <code>{tenant_id}</code><br>
+  Consent recorded: {escape(conn.get('consented_at', ''))}</p>
+  {scan_control}
+</div>""")
+        connected_html = "<h2>Connected tenants</h2>" + "".join(rows)
+    else:
+        connected_html = ("<h2>Connected tenants</h2>"
+                          "<p>None yet. The first tenant appears here "
+                          "after its own admin grants consent.</p>")
+    if not cfg["scan_ready"]:
+        connected_html += ('<div class="notice">Consent can be '
+                           'recorded now, but live scans also need '
+                           '<code>TENANTCHECK_MS_CLIENT_SECRET</code> '
+                           'to be configured on this server.</div>')
+    body = f"""
+<h1>Connect your tenant</h1>
+{notice}
+<p>Connecting takes one step on Microsoft's own site: a Global
+Administrator <strong>from your firm</strong> opens the consent screen,
+sees the exact read-only permission list below, and grants or refuses.
+We cannot grant it, pre-approve it, or see anything before that
+moment.</p>
+<div class="card">
+  <h2>The permissions your admin will see</h2>
+  <ul>{permissions}</ul>
+  <p>All read-only. No mail contents, no write permissions. Consent
+  can be revoked by your admin in Entra ID at any time, without asking
+  us.</p>
+  <a class="btn" href="{escape(consent_url, quote=True)}">Connect a tenant with Microsoft admin consent</a>
+</div>
+{connected_html}
+<p class="small">{HONESTY_LINE}</p>
+"""
+    return page("Connect your tenant", body)
+
+
+def connect_callback_page(outcome):
+    status, detail = outcome
+    if status == "recorded":
+        body = f"""
+<h1>Consent recorded</h1>
+<div class="notice">Consent recorded for tenant
+<code>{escape(detail.get('tenant_id', ''))}</code> at
+{escape(detail.get('consented_at', ''))}. The tenant is now listed on
+the <a href="/connect">connect page</a>, where a live scan can be run
+for it.</div>
+<p class="small">{HONESTY_LINE}</p>
+"""
+    elif status == "not_configured":
+        body = f"""
+<h1>Setup is pending</h1>
+<div class="notice">{escape(detail)} Nothing was recorded.</div>
+<p><a href="/live-connection">How the live connection works</a></p>
+"""
+    else:
+        body = f"""
+<h1>Consent not recorded</h1>
+<div class="notice">{escape(detail)} Nothing was recorded. You can
+start again from the <a href="/connect">connect page</a>.</div>
+<p class="small">{HONESTY_LINE}</p>
+"""
+    return page("Connect your tenant", body)
+
+
+def connect_incomplete_page(tenant_id, missing, warnings):
+    items = "".join(f"<li><code>{escape(m)}</code></li>"
+                    for m in missing)
+    warns = ""
+    if warnings:
+        warns = ("<p>Also noted while reading the tenant:</p><ul>"
+                 + "".join(f"<li>{escape(w)}</li>" for w in warnings)
+                 + "</ul>")
+    body = f"""
+<h1>Live scan not run yet</h1>
+<div class="notice">The connection returned everything Microsoft
+Graph can supply for tenant <code>{escape(tenant_id)}</code>, but the
+scan has <strong>not</strong> been run: these owner-stated items are
+still missing, and {PRODUCT} reports evidence missing instead of
+guessing values for them.</div>
+<ul>{items}</ul>
+{warns}
+<p>These are the same facts the export path asks the owner to state in
+the snapshot (backup state, EDR and encryption coverage, training, the
+incident response plan, the password policy). Once they are recorded
+on the connection, the live scan runs the identical checks.</p>
+<p><a href="/connect">Back to the connect page</a></p>
+"""
+    return page("Live scan not run yet", body)
 
 
 # ---------------------------------------------------------------------------
@@ -545,9 +769,14 @@ def with_meta(snap, source):
         or "Uploaded tenant"
     meta["snapshot_date"] = meta.get("snapshot_date") \
         or datetime.date.today().isoformat()
-    meta["label"] = ("Uploaded tenant export, scanned exactly as "
-                     "provided. Findings cover only what the export "
-                     "contains.")
+    if source == "graph":
+        meta["label"] = ("Live Microsoft Graph connection, read with "
+                         "the tenant admin's consent. Findings cover "
+                         "only what the connection returned.")
+    else:
+        meta["label"] = ("Uploaded tenant export, scanned exactly as "
+                         "provided. Findings cover only what the export "
+                         "contains.")
     snap["_meta"] = meta
     return snap
 
@@ -664,8 +893,9 @@ def insureready_html(rows):
 
 def results_page(record):
     s = record["summary"]
-    src = ("fictional demo tenant" if record["source"] == "demo"
-           else "uploaded tenant export")
+    src = {"demo": "fictional demo tenant",
+           "graph": "live Microsoft Graph connection"}.get(
+               record["source"], "uploaded tenant export")
     body = f"""
 <h1>Scan results</h1>
 <p>Tenant: <strong>{escape(record['firm'])}</strong> ({src})<br>
@@ -825,8 +1055,28 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, scan_page())
         elif path == "/how-to-export":
             self._send(200, export_page())
+        elif path == "/export-script":
+            if not os.path.exists(EXPORT_SCRIPT_PATH):
+                self._not_found()
+            else:
+                with open(EXPORT_SCRIPT_PATH, "rb") as fh:
+                    script = fh.read()
+                self._send(
+                    200, script,
+                    content_type="text/plain; charset=utf-8",
+                    extra_headers={
+                        "Content-Disposition":
+                            'attachment; '
+                            'filename="tenantcheck-export.ps1"'})
         elif path == "/live-connection":
             self._send(200, live_connection_page())
+        elif path == "/connect":
+            self._send(200, connect_page(
+                message=query.get("msg", [""])[0] or None))
+        elif path == "/connect/callback":
+            flat = {k: v[0] for k, v in query.items()}
+            self._send(200, connect_callback_page(
+                graph_connect.handle_callback(flat)))
         elif path.startswith("/results/"):
             record = load_scan(path[len("/results/"):])
             if record is None:
@@ -857,6 +1107,9 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_upload()
             return
         form = self._form()
+        if path == "/connect/scan":
+            self._handle_connect_scan(form)
+            return
         if path == "/founding":
             name = (form.get("name") or "").strip()
             email = (form.get("email") or "").strip()
@@ -884,6 +1137,34 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, results_page(record))
         else:
             self._not_found()
+
+    def _handle_connect_scan(self, form):
+        cfg = graph_connect.config()
+        if not cfg["scan_ready"]:
+            self._send(200, connect_page())
+            return
+        tenant_id = (form.get("tenant_id") or "").strip()
+        if not tenant_id \
+                or graph_connect.get_connection(tenant_id) is None:
+            self._send(400, error_page(
+                "Unknown tenant",
+                "That tenant has not granted consent, so there is no "
+                "live connection to scan. Connect it first from the "
+                "connect page."))
+            return
+        try:
+            outcome = graph_connect.scan_tenant(tenant_id)
+        except graph_connect.GraphError as exc:
+            self._send(502, error_page(
+                "Microsoft Graph could not be reached",
+                str(exc)))
+            return
+        if outcome["status"] == "incomplete":
+            self._send(200, connect_incomplete_page(
+                tenant_id, outcome["missing"], outcome["warnings"]))
+            return
+        record = run_and_store(outcome["snapshot"], "graph")
+        self._send(200, results_page(record))
 
     def _handle_upload(self):
         length = int(self.headers.get("Content-Length") or 0)

@@ -74,10 +74,19 @@ deployment platform requires it — see `DEPLOY.md`.
 - **Report downloads (`/report/<id>/tenantfix|tokenwatch|insureready`)**
   — the engine's Markdown reports, byte-for-byte the prototype's
   outputs, each DRAFT-stamped, served as file attachments.
-- **How to export (`/how-to-export`)** — what the snapshot is, a
-  table mapping each snapshot section to its Microsoft Graph / admin
-  source, the current manual assembly process, and the standing rule
-  that no Microsoft password is ever asked for.
+- **How to export (`/how-to-export`)** — a guided page with two
+  paths. **Option A (about 10 minutes):** the customer firm's own
+  admin downloads `tools/tenantcheck-export.ps1` (served at
+  `/export-script` as a file attachment), runs it on their own
+  Windows machine, signs in interactively with the Microsoft Graph
+  PowerShell SDK under read-only scopes, answers the owner-stated
+  questions the script asks, and uploads the
+  `tenantcheck-snapshot.json` it writes. The script stores and
+  transmits no credentials and sends nothing anywhere.
+  **Option B:** the original manual assembly, kept as a fallback,
+  with the table mapping each snapshot section to its Microsoft
+  Graph / admin source. Both paths keep the standing rule that no
+  Microsoft password is ever asked for.
 - **Live connection (`/live-connection`)** — the consent explainer:
   app registration, admin consent granted only by the customer's own
   Global Administrator, read-only permissions, revocability — and a
@@ -107,7 +116,13 @@ TenantFix, 3 TokenWatch-flagged of 8 grants, 11 InsureReady gaps of
 python3 check_app.py
 ```
 
-**58 / 58 end-to-end checks passed** on 2026-11-09: server and landing
+**67 / 67 end-to-end checks passed** (58 original checks as of
+2026-11-09, plus the export-helper checks added 2026-11-11: the
+guided page offers Option A and Option B, `/export-script` serves
+the script file as an attachment, and a fixture in exactly the
+script's output shape passes the upload flow with its expected
+results — 3 TenantFix findings, 1 of 2 grants flagged, 5 of 13
+InsureReady gaps): server and landing
 (all three modules, all three founding prices, honesty line, signup
 fields), explainer pages (export sources, consent steps, "not
 switched on" status), demo flow returning the prototype's exact
@@ -180,5 +195,7 @@ not validated prices, and no payment is collected in this build.
 | `demo_snapshot.json` | Fabricated demo tenant with planted-problems manifest |
 | `check_app.py` | Automated end-to-end verification (58 checks + engine 40/40) |
 | `run.sh` | Start the app (PORT/HOST overridable, defaults 8795 / 127.0.0.1) |
+| `tools/tenantcheck-export.ps1` | Guided export helper the customer's own admin runs (Graph SDK, read-only) |
+| `tools/sample-script-output.json` | Fixture in exactly the script's output shape, uploaded by `check_app.py` |
 | `data/` | Runtime JSON stores: `founding.json`, `scans.json` |
 | `DEPLOY.md` | What going live still requires (not done in this build) |
