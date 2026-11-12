@@ -7,7 +7,9 @@ content and founding prices, explainer pages, the demo scan flow
 against the prototype's expected findings (TenantFix 10, TokenWatch
 3 flagged of 8, InsureReady 11 gaps of 13), report downloads with the
 DRAFT stamp, the upload flow (valid, invalid, incomplete snapshots),
-founding-list persistence, and 404 handling. Also re-runs the copied
+founding-list persistence, and 404 handling, plus the SEO layer
+(per-page meta descriptions, Open Graph and canonical tags, homepage
+JSON-LD, /sitemap.xml, /robots.txt). Also re-runs the copied
 engine's own verification (40/40) so the app provably ships the
 verified engine. The guided export helper is covered too: the
 /how-to-export page must offer the script (Option A) and the manual
@@ -226,6 +228,54 @@ def main():
               "tenant admin consent" in body)
         check("live-connection states it is not switched on",
               "not switched on" in body)
+
+        # ---- SEO: metadata, sitemap, robots ----------------------
+        status, _h, raw_home = request("GET", "/")
+        check("seo: homepage returns 200 (raw fetch)",
+              status == 200)
+        m = re.search(r'<meta name="description" content="([^"]*)"',
+                      raw_home)
+        home_desc = m.group(1) if m else None
+        check("seo: homepage carries a meta description",
+              bool(home_desc))
+        check("seo: homepage carries og:title",
+              'property="og:title"' in raw_home)
+        check("seo: homepage canonical is the production root",
+              '<link rel="canonical" '
+              'href="https://tenantcheck365.ca/">' in raw_home)
+        ld_types = []
+        for raw_ld in re.findall(
+                r'<script type="application/ld\+json">(.*?)</script>',
+                raw_home, re.S):
+            try:
+                ld_types.append(json.loads(raw_ld).get("@type"))
+            except ValueError:
+                ld_types.append(None)
+        check("seo: homepage JSON-LD parses (Organization + "
+              "FAQPage)", ld_types == ["Organization", "FAQPage"])
+        status, _h, sm = request("GET", "/sitemap.xml")
+        check("seo: sitemap 200 listing exactly the public pages",
+              status == 200 and all(
+                  f"<loc>https://tenantcheck365.ca{p}</loc>" in sm
+                  for p in ["/", "/scan", "/how-to-export",
+                            "/live-connection", "/connect"])
+              and sm.count("<url>") == 5
+              and "/results/" not in sm
+              and "/export-script" not in sm)
+        status, _h, rb = request("GET", "/robots.txt")
+        check("seo: robots 200 referencing the sitemap",
+              status == 200 and "Sitemap: "
+              "https://tenantcheck365.ca/sitemap.xml" in rb)
+        descs = set()
+        for pth in ("/how-to-export", "/live-connection"):
+            _st, _hh, raw_p = request("GET", pth)
+            mm = re.search(
+                r'<meta name="description" content="([^"]*)"', raw_p)
+            if mm:
+                descs.add(mm.group(1))
+        check("seo: export and live-connection pages carry distinct "
+              "descriptions, different from the homepage",
+              len(descs) == 2 and home_desc not in descs)
 
         # ---- demo scan flow ------------------------------------------
         status, _h, body = post_form("/scan/demo", {})
