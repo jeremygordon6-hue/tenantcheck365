@@ -116,6 +116,9 @@ OWNER_CONTROL_KEYS = (
     "incidentResponsePlanDocumented",
     "deviceEncryptionPercent",
     "automaticUpdatesEnabled",
+    "writtenSecurityPolicyDocumented",
+    "penetrationTestLastMonthsAgo",
+    "backupOfflineOrImmutableCopy",
 )
 
 STATE_TTL_SECONDS = 900
