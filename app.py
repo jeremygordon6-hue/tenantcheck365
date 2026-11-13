@@ -10,6 +10,11 @@ One brand over the three verified M365-cluster modules:
                       x consent, with unverified-publisher loading.
   * InsureReady 365 — the same scan mapped to a cyber-insurance
                       evidence pack (Supported / Gap / Evidence missing).
+  * CopilotReady    — the Copilot oversharing audit (copilot_audit.py):
+                      reads the snapshot's per-site / per-library
+                      permission inventory and reports what Microsoft
+                      Copilot could surface to staff who should not
+                      see it. Included in the scan; no separate price.
 
 Stack: Python standard library only — http.server, server-rendered
 HTML with inline CSS, no JavaScript frameworks, no external requests.
@@ -47,6 +52,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import m365  # the verified prototype engine (copied in byte-identical)
+import copilot_audit  # Copilot oversharing audit (companion module;
+                      # runs on the snapshot's sharingInventory)
 import graph_connect  # live Microsoft Graph connection (inactive
                       # until the TENANTCHECK_MS_* env vars are set)
 
@@ -264,8 +271,9 @@ def home_json_ld():
          "forwarding mail outside the business, anonymous file "
          "sharing, too many Global Administrators, dormant admin "
          "accounts, broad guest access, and weak password policy — "
-         "plus an inventory of every third-party app grant and 13 "
-         "cyber-insurance questions."),
+         "plus an inventory of every third-party app grant, 13 "
+         "cyber-insurance questions, and a Copilot oversharing "
+         "audit of your site and library permissions."),
         ("Do I have to give TenantCheck 365 my Microsoft password?",
          "No. There is no Microsoft sign-in anywhere in this app, "
          "and your Microsoft username or password is never asked "
@@ -403,7 +411,7 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   or skip straight to the demo below.</p>
   <p><strong>2. Upload</strong> — the scan runs on the export. No
   Microsoft sign-in, no password, nothing installed.</p>
-  <p><strong>3. Review</strong> — you get the three reports below, each
+  <p><strong>3. Review</strong> — you get the reports below, each
   dated and DRAFT-stamped. Fixes are a plan for your approval, never
   applied behind your back.</p>
   <p class="small">A live connection that skips the export is the next
@@ -449,9 +457,23 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
 </div>
 
 <div class="card">
+  <h2>CopilotReady <span class="badge">Included in the scan</span></h2>
+  <p>Copilot answers from everything the asking employee is already
+  allowed to read — so every broad grant hiding in SharePoint and
+  OneDrive becomes something Copilot can quote back to the wrong
+  person. The scan now includes an oversharing audit of your site
+  and library permissions: "anyone with the link" links, grants to
+  every staff member, company-wide links, ownerless sites, drives
+  whose owner has left, and guests who can re-share. It reads the
+  permission inventory in your export, never file contents.</p>
+  <p>Included in the scan and the bundle below — no separate price.</p>
+</div>
+
+<div class="card">
   <h2>The bundle <span class="badge">All three modules</span></h2>
   <p>TenantFix + TokenWatch + InsureReady on one tenant scan engine,
-  with scheduled re-scans so the state you attested to stays true
+  with the CopilotReady oversharing audit included in every scan,
+  and scheduled re-scans so the state you attested to stays true
   between renewals.</p>
   <p><strong>Founding price: $49/month</strong> for the full bundle.</p>
   <a class="btn" href="https://buy.stripe.com/9B600cdVv1LV9umgbq5Rm05">Subscribe — $49/month</a>
@@ -508,8 +530,10 @@ def scan_page(error=None):
     body = f"""
 <h1>Run a scan</h1>
 <p>Upload an exported tenant snapshot (one JSON file) and {PRODUCT}
-runs all three modules on it: TenantFix hardening findings, the
-TokenWatch grant ranking, and the InsureReady evidence pack. The
+runs all three modules on it — TenantFix hardening findings, the
+TokenWatch grant ranking, and the InsureReady evidence pack — plus
+the CopilotReady oversharing audit of the snapshot's site and
+library permission inventory. The
 snapshot is stored only as your scan record on this server, so your
 reports stay downloadable.</p>
 {err}
@@ -578,7 +602,9 @@ step.</p>
   account and approve a fixed list of <strong>read-only</strong>
   permissions: user and directory reads, role assignments, policy
   reads, the MFA registration report, sign-in activity, app consent
-  records, and inbox <em>rule definitions</em> (rule settings such as
+  records, site and library <em>permission lists</em> (who and what
+  each site is shared with — never file contents), and inbox
+  <em>rule definitions</em> (rule settings such as
   forwarding targets — the script never reads message contents). The
   script never sees, stores, or sends your password; no permission in
   the list can change anything in your tenant.</p>
@@ -594,11 +620,14 @@ step.</p>
   the <a href="/scan">scan page</a> and review your three reports.
   Fixes are listed as steps in an owner-approved plan; this tool
   applies nothing.</p>
-  <p class="small">Two honest limits of the script: Microsoft does not
+  <p class="small">Three honest limits of the script: Microsoft does not
   expose when each third-party app grant was last used, so grants are
-  scored without a dormancy guess; and it cannot see how broadly a
-  guest account can reach, so guests are never flagged on a guess —
-  both facts are stated in the script itself.</p>
+  scored without a dormancy guess; it cannot see how broadly a
+  guest account can reach, so guests are never flagged on a guess;
+  and the Copilot oversharing audit reads site-level and
+  library-root permission lists, not every file — sharing links on
+  individual files below that level are not enumerated. All three
+  facts are stated in the script itself.</p>
 </div>
 
 <div class="card">
@@ -631,6 +660,13 @@ step.</p>
             consented, publisher verification, last use</td>
         <td>Enterprise applications — Graph OAuth2 permission grants
             and service principals</td></tr>
+    <tr><td><code>sharingInventory</code></td>
+        <td>Per-site and per-drive sharing digest: owners, anonymous
+            and company-wide link permissions, grants to "Everyone"
+            or to every staff member, guest counts</td>
+        <td>SharePoint — Graph site permission lists and library
+            (drive) root permission lists, plus drive ownership.
+            Permission lists only, never file contents</td></tr>
     <tr><td><code>securityControls</code></td>
         <td>Conditional Access policy count, EDR and encryption
             coverage, backup state, training currency, incident
@@ -949,6 +985,7 @@ def with_meta(snap, source):
 def run_and_store(snap, source):
     snap = with_meta(snap, source)
     norm, tf, tw, ir = m365.run_scan(snap)
+    ca = copilot_audit.copilotaudit(snap)
     record = {
         "id": uuid.uuid4().hex[:12],
         "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -962,14 +999,19 @@ def run_and_store(snap, source):
             "insureready_questions": len(ir),
             "insureready_gaps": sum(1 for r in ir
                                      if r["status"] != "Supported"),
+            "copilot_covered": ca["covered"],
+            "copilot_items": ca["items_reviewed"],
+            "copilot_findings": len(ca["findings"]),
         },
         "tenantfix": tf,
         "tokenwatch": tw,
         "insureready": ir,
+        "copilot": ca,
         "reports": {
             "tenantfix": m365.render_tenantfix(snap, tf),
             "tokenwatch": m365.render_tokenwatch(snap, tw),
             "insureready": m365.render_insureready(snap, ir),
+            "copilot": copilot_audit.render_copilotaudit(snap, ca),
         },
     }
     scans = load_list(SCANS_PATH)
@@ -1056,8 +1098,73 @@ def insureready_html(rows):
     return "".join(out)
 
 
+def copilot_html(ca):
+    """Render the CopilotReady section of the results page. Records
+    stored before this module existed have no "copilot" entry and
+    render nothing extra."""
+    if ca is None:
+        return ""
+    if not ca["covered"]:
+        return f"""
+<div class="card">
+  <h2>CopilotReady — oversharing audit</h2>
+  <div class="notice"><strong>Not covered by this snapshot.</strong>
+  {escape(copilot_audit.NOT_COVERED_NOTE)}</div>
+</div>"""
+    findings = ca["findings"]
+    if not findings:
+        inner = ("<p>No oversharing findings in the permission lists "
+                 "this snapshot contains. That is not a guarantee — "
+                 "the audit reads site and library permission lists, "
+                 "not every file.</p>")
+    else:
+        out = []
+        for f in sorted(findings,
+                        key=lambda x: SEV_ORDER[x["severity"]]):
+            steps = "".join(f"<li>{escape(s)}</li>"
+                            for s in f["fix_steps"])
+            out.append(f"""
+<div class="finding">
+  <p><span class="sev sev-{f['severity'].lower()}">{f['severity']}</span>
+     <strong>{escape(f['title'])}</strong></p>
+  <p class="small">Check: {escape(f['check'])} ·
+     Subject: {escape(f['subject'])}</p>
+  <p>Why it matters: {escape(f['why'])}</p>
+  <p>Fix steps:</p>
+  <ol>{steps}</ol>
+</div>""")
+        inner = "".join(out)
+    return f"""
+<div class="card">
+  <h2>CopilotReady — oversharing audit</h2>
+  <p>Copilot answers only from what the asking employee may already
+  read, so broad sharing grants are the exposure. This audit read
+  the permission lists for {ca['items_reviewed']} site(s) and
+  drive(s) in the snapshot — permission lists only, never file
+  contents.</p>
+  {inner}
+</div>"""
+
+
 def results_page(record):
     s = record["summary"]
+    ca = record.get("copilot")
+    if ca is not None and s.get("copilot_covered"):
+        copilot_row = (f"<strong>{s['copilot_findings']} Copilot "
+                       f"oversharing findings</strong> across "
+                       f"{s['copilot_items']} sites and drives")
+        copilot_button = (f'<a class="btn" '
+                          f'href="/report/{record["id"]}/copilot">'
+                          f'Download the CopilotReady audit</a> ')
+    elif ca is not None:
+        copilot_row = ("<strong>Not covered</strong> — this snapshot "
+                       "has no sharing inventory")
+        copilot_button = (f'<a class="btn" '
+                          f'href="/report/{record["id"]}/copilot">'
+                          f'Download the CopilotReady note</a> ')
+    else:
+        copilot_row = "Not run for this stored scan"
+        copilot_button = ""
     src = {"demo": "fictional demo tenant",
            "graph": "live Microsoft Graph connection"}.get(
                record["source"], "uploaded tenant export")
@@ -1078,13 +1185,16 @@ Scanned: {escape(record['timestamp'])}</p>
         <td><strong>{s['tokenwatch_flagged']} of {s['tokenwatch_grants']} app grants flagged</strong> by risk</td></tr>
     <tr><td>InsureReady 365</td>
         <td><strong>{s['insureready_gaps']} of {s['insureready_questions']} insurance questions</strong> are gaps or missing evidence</td></tr>
+    <tr><td>CopilotReady</td>
+        <td>{copilot_row}</td></tr>
   </table>
   <p>
     <a class="btn" href="/report/{record['id']}/tenantfix">Download the TenantFix report</a>
     <a class="btn" href="/report/{record['id']}/tokenwatch">Download the TokenWatch report</a>
     <a class="btn" href="/report/{record['id']}/insureready">Download the InsureReady evidence pack</a>
+    {copilot_button}
   </p>
-  <p class="small">All three downloads are Markdown reports carrying
+  <p class="small">All downloads are Markdown reports carrying
   the DRAFT stamp below.</p>
 </div>
 
@@ -1107,6 +1217,8 @@ Scanned: {escape(record['timestamp'])}</p>
   answered from this scan's evidence — not a specific insurer's form.</p>
   {insureready_html(record['insureready'])}
 </div>
+
+{copilot_html(ca)}
 
 <div class="card">
   <h2>Honesty note</h2>
@@ -1167,6 +1279,7 @@ REPORT_FILES = {
     "tokenwatch": ("tokenwatch_report", "TokenWatch report"),
     "insureready": ("insureready_evidence_pack",
                     "InsureReady 365 evidence pack"),
+    "copilot": ("copilot_report", "CopilotReady oversharing audit"),
 }
 
 
