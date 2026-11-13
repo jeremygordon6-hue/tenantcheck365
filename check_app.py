@@ -7,7 +7,12 @@ content and founding prices, explainer pages, the demo scan flow
 against the prototype's expected findings (TenantFix 10, TokenWatch
 3 flagged of 8, InsureReady 11 gaps of 13), report downloads with the
 DRAFT stamp, the upload flow (valid, invalid, incomplete snapshots),
-founding-list persistence, and 404 handling, plus the SEO layer
+founding-list persistence, and 404 handling, the CopilotReady
+oversharing audit (copilot_audit.py — the demo tenant's planted
+sharing inventory must produce its 7 findings, the script-shaped
+fixture its 2, a snapshot without a sharing inventory must report
+the audit as not covered, and a synthetic disabled-owner drive must
+fire CA-DISABLED-OWNER), plus the SEO layer
 (per-page meta descriptions, Open Graph and canonical tags, homepage
 JSON-LD, /sitemap.xml, /robots.txt). Also re-runs the copied
 engine's own verification (40/40) so the app provably ships the
@@ -159,6 +164,8 @@ def main():
         check("landing presents TokenWatch", "TokenWatch" in body)
         check("landing presents InsureReady 365",
               "InsureReady 365" in body)
+        check("landing presents CopilotReady as included in the scan",
+              "CopilotReady" in body and "Included in the scan" in body)
         check("landing shows TenantFix founding price $149",
               "$149" in body)
         check("landing shows monitoring founding price $39/month",
@@ -295,6 +302,11 @@ def main():
               "3 of 8 app grants flagged" in body)
         check("demo: InsureReady finds 11 gaps of 13 questions",
               "11 of 13 insurance questions" in body)
+        check("demo: CopilotReady finds the 7 planted oversharing "
+              "findings", "7 Copilot oversharing findings" in body)
+        check("demo: CopilotReady surfaces the anonymous edit link "
+              "on Payroll and HR",
+              "Payroll and HR" in body and "CA-ANYONE-LINK" in body)
         check("demo: worst grant MailFlow Pro is surfaced",
               "MailFlow Pro" in body)
         check("demo: fix plan states it does NOT apply fixes",
@@ -317,6 +329,11 @@ def main():
               and rec["summary"]["tokenwatch_flagged"] == 3
               and rec["summary"]["tokenwatch_grants"] == 8
               and rec["summary"]["insureready_gaps"] == 11)
+        check("scan record persisted the CopilotReady summary",
+              rec is not None
+              and rec["summary"]["copilot_covered"] is True
+              and rec["summary"]["copilot_items"] == 6
+              and rec["summary"]["copilot_findings"] == 7)
 
         # ---- report downloads ----------------------------------------
         status, headers, body = get(f"/report/{scan_id}/tenantfix")
@@ -332,6 +349,12 @@ def main():
         status, _h, body = get(f"/report/{scan_id}/insureready")
         check("InsureReady pack downloads with IR-Q01 and DRAFT stamp",
               status == 200 and "IR-Q01" in body and "DRAFT" in body)
+        status, _h, body = get(f"/report/{scan_id}/copilot")
+        check("CopilotReady report downloads with CA-ANYONE-LINK and "
+              "DRAFT stamp",
+              status == 200 and "CopilotReady" in body
+              and "CA-ANYONE-LINK" in body and "DRAFT" in body
+              and "does not certify compliance" in body)
         status, _h, _b = get("/report/000000000000/tenantfix")
         check("report for an unknown scan is 404", status == 404)
 
@@ -347,11 +370,15 @@ def main():
               "3 of 8 app grants flagged" in body)
         check("upload: InsureReady finds 11 gaps",
               "11 of 13 insurance questions" in body)
+        check("upload: CopilotReady finds the 7 planted findings",
+              "7 Copilot oversharing findings" in body)
 
         # A fixture in exactly the shape tools/tenantcheck-export.ps1
         # emits (same sections, fields and null conventions) must scan
         # end to end: 3 TenantFix findings, 1 of 2 grants flagged,
-        # 5 of 13 InsureReady gaps on the fixture firm.
+        # 5 of 13 InsureReady gaps on the fixture firm, and 2
+        # CopilotReady findings (a company-wide link and a disabled
+        # account owner's OneDrive) from its sharing inventory.
         fixture_bytes = open(os.path.join(
             APP_DIR, "tools", "sample-script-output.json"), "rb").read()
         status, _h, body = post_multipart(
@@ -364,6 +391,23 @@ def main():
               "1 of 2 app grants flagged" in body)
         check("fixture: InsureReady finds 5 gaps of 13 questions",
               "5 of 13 insurance questions" in body)
+        check("fixture: CopilotReady finds 2 oversharing findings",
+              "2 Copilot oversharing findings" in body
+              and "CA-DISABLED-OWNER" in body)
+
+        # An older export without a sharing inventory still scans,
+        # and the CopilotReady section must say NOT COVERED — never
+        # render the absence as a pass.
+        noinv = json.loads(demo_bytes)
+        del noinv["sharingInventory"]
+        status, _h, body = post_multipart(
+            "/scan/upload", "snapshot", "older-export.json",
+            json.dumps(noinv).encode())
+        check("upload without a sharing inventory returns 200",
+              status == 200)
+        check("no-inventory upload: CopilotReady reports not covered",
+              "Not covered by this snapshot" in body
+              and "no sharing inventory" in body)
 
         status, _h, body = post_multipart("/scan/upload", "snapshot",
                                           "bad.json", b"this is not json")
@@ -419,6 +463,38 @@ def main():
               summary["checks_passed"] == 40
               and summary["checks_failed"] == 0,
               f"{summary['checks_passed']}/{summary['total_checks']}")
+
+        # ---- CopilotReady audit: in-process unit checks -----------
+        import copilot_audit
+        ca_demo = copilot_audit.copilotaudit(snap)
+        planted_ca = {(p["check"], p["subject"])
+                      for p in snap["_planted"]["copilotaudit"]}
+        actual_ca = {(f["check"], f["subject"])
+                     for f in ca_demo["findings"]}
+        check("copilot: every planted oversharing case is caught",
+              planted_ca <= actual_ca,
+              f"missing: {sorted(planted_ca - actual_ca)}")
+        check("copilot: no unexpected findings (clean item silent)",
+              actual_ca == planted_ca,
+              f"unexpected: {sorted(actual_ca - planted_ca)}")
+        check("copilot: every finding has severity, why and fix steps",
+              all(f["severity"] and f["why"] and f["fix_steps"]
+                  for f in ca_demo["findings"]))
+        bare = {k: v for k, v in snap.items()
+                if k != "sharingInventory"}
+        ca_bare = copilot_audit.copilotaudit(bare)
+        check("copilot: a snapshot with no sharing inventory is not "
+              "covered and yields no findings",
+              ca_bare["covered"] is False
+              and ca_bare["findings"] == [])
+        ca_report = copilot_audit.render_copilotaudit(snap, ca_demo)
+        ca_bare_report = copilot_audit.render_copilotaudit(bare, ca_bare)
+        check("copilot: reports carry the DRAFT stamp, covered and "
+              "not covered alike",
+              "DRAFT" in ca_report and "DRAFT" in ca_bare_report
+              and "NOT COVERED" in ca_bare_report)
+        check("copilot: report states the per-file link limit",
+              "individual files" in ca_report)
 
         # ---- live Graph connection: PENDING state (server 1 has no
         # TENANTCHECK_MS_* env vars) --------------------------------
