@@ -700,6 +700,12 @@ if ($null -eq $trainPct) { $trainPct = 0; $DefaultedAnswers.Add("securityTrainin
 
 $irPlan = Ask-YesNo "Is there a written incident response plan"
 if ($null -eq $irPlan) { $irPlan = $false; $DefaultedAnswers.Add("incidentResponsePlanDocumented (recorded as no document you could point to)") }
+$secPolicy = Ask-YesNo "Is there a written information security policy staff can point to"
+if ($null -eq $secPolicy) { $secPolicy = $false; $DefaultedAnswers.Add("writtenSecurityPolicyDocumented (recorded as no document you could point to)") }
+$immutableBackup = Ask-YesNo "Is at least one backup copy kept offline or in immutable storage"
+if ($null -eq $immutableBackup) { $immutableBackup = $false; $DefaultedAnswers.Add("backupOfflineOrImmutableCopy (recorded as not confirmed)") }
+$pentestMonths = Ask-OptionalInt "Months since the last independent penetration test or vulnerability assessment (blank = none you can date)"
+if ($null -eq $pentestMonths) { $DefaultedAnswers.Add("penetrationTestLastMonthsAgo (left unrecorded = no test date you could state; the scan reports evidence missing, not a pass)") }
 $autoUpd = Ask-YesNo "Do computers apply updates automatically"
 if ($null -eq $autoUpd) { $autoUpd = $false; $DefaultedAnswers.Add("automaticUpdatesEnabled (recorded as not confirmed)") }
 
@@ -734,10 +740,13 @@ $snapshot = [ordered]@{
         backupEnabled                    = [bool]$backupOn
         backupLastSuccessfulDaysAgo      = $backupSuccessDays
         backupLastTestRestoreDaysAgo     = $backupTestDays
+        backupOfflineOrImmutableCopy     = [bool]$immutableBackup
         conditionalAccessPolicyCount     = $enabledCaCount
         deviceEncryptionPercent          = $enc
         edrCoveragePercent               = $edr
         incidentResponsePlanDocumented   = [bool]$irPlan
+        penetrationTestLastMonthsAgo     = $pentestMonths
+        writtenSecurityPolicyDocumented  = [bool]$secPolicy
         securityTrainingCompletionPercent = $trainPct
         securityTrainingLastMonthsAgo    = $trainMonths
     }
