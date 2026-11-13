@@ -252,9 +252,9 @@ test entries never reach the real stores.
 
 | Offer | Founding price |
 |---|---|
-| TenantFix 365 scan + owner-approved fix plan | **$149** one time |
-| TenantFix monitoring (scheduled re-scan alerts) | **$39/month** |
-| Full bundle (TenantFix + TokenWatch + InsureReady) | **$49/month** |
+| TenantFix 365 scan + owner-approved fix plan | **$149 CAD** one time |
+| TenantFix monitoring (re-scans on request) | **$39 CAD/month** |
+| Full bundle (TenantFix + TokenWatch + InsureReady) | **$49 CAD/month** |
 
 **Pricing source note (required honesty):** the CTIO research behind
 these modules validated **no dollar price** for any of them. What the
@@ -267,8 +267,9 @@ InsureReady's willingness-to-pay signal is deadline-driven (annual
 renewal), with the dollar figure unvalidated (Track A §2). The
 research's own stated next step for TenantFix was validation with 5
 tenant scans before any price is set. The founding prices above
-therefore follow the **NorthCheck founding ladder** ($149 evidence
-pack / $39 monitoring / $49 subscription) as deliberate introductory
+therefore follow the **NorthCheck founding ladder** ($149 CAD
+evidence pack / $39 CAD monitoring / $49 CAD subscription, all in
+CAD) as deliberate introductory
 hypotheses for the first cohort — labelled "founding prices" on the
 site, to be confirmed or changed by those validation scans. They are
 not validated prices, and no payment is collected in this build.
