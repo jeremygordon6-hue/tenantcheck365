@@ -4,7 +4,10 @@ M365 Cluster prototype - one tenant scan engine, three paid outputs.
 
 Modules:
   TenantFix 365   - deterministic hardening checks + owner-approved fix plan
-  TokenWatch      - OAuth grant inventory ranked by scope x dormancy x consent
+  TokenWatch      - OAuth grant inventory ranked by scope sensitivity,
+                    consent type and publisher verification; an unused
+                    age raises the score only when the snapshot carries
+                    a real last-use date (script exports carry none)
   InsureReady 365 - scan results mapped to a cyber-insurance evidence pack
 
 Python standard library only. Offline snapshot prototype: it reads an
@@ -434,16 +437,44 @@ def insureready(snap, norm, tf_findings, tw_inventory):
                and c["backupLastTestRestoreDaysAgo"] <= 90) else
         "Backups exist but a restore has not been tested within 90 days, "
         "which is what the question actually asks."))
+    # IR-Q07: a snapshot whose export could not read every mailbox
+    # cannot claim "no forwarding rules" for the ones it skipped.
+    # exportCoverage is written by the export script (and only by
+    # snapshots that carry it); snapshots without it keep the plain
+    # behaviour, because nothing is known about skipped mailboxes.
+    coverage = snap.get("exportCoverage") or {}
+    mailboxes_checked = coverage.get("mailboxesChecked") or 0
+    mailboxes_skipped = coverage.get("mailboxesSkipped") or 0
+    if "TF-FORWARD-EXTERNAL" in checks:
+        q07_status, q07_evidence, q07_gap = (
+            "Gap",
+            "an active inbox rule forwards mail to an external "
+            "address.",
+            "An uncontrolled forwarding rule contradicts a 'yes' "
+            "answer here.")
+    elif mailboxes_skipped:
+        q07_status, q07_evidence, q07_gap = (
+            "Evidence missing",
+            f"forwarding rules were read for {mailboxes_checked} "
+            f"mailbox(es), but {mailboxes_skipped} mailbox(es) "
+            "could not be read by the export, so no forwarding "
+            "evidence exists for them.",
+            "Re-run the export with access to the skipped "
+            "mailboxes, or check them in the Exchange admin "
+            "centre, before answering 'yes'. A skipped mailbox is "
+            "not evidence of 'no rules'.")
+    else:
+        q07_status, q07_evidence, q07_gap = (
+            "Supported",
+            "no external forwarding rules found in the mailboxes "
+            "the export read.",
+            "")
     rows.append(row(
         "IR-Q07", "Is automatic forwarding of email to external addresses "
                   "controlled?",
-        "Gap" if "TF-FORWARD-EXTERNAL" in checks else "Supported",
-        "Scan evidence: "
-        + ("an active inbox rule forwards mail to an external address."
-           if "TF-FORWARD-EXTERNAL" in checks
-           else "no external forwarding rules found."),
-        "" if "TF-FORWARD-EXTERNAL" not in checks else
-        "An uncontrolled forwarding rule contradicts a 'yes' answer here."))
+        q07_status,
+        "Scan evidence: " + q07_evidence,
+        q07_gap))
     rows.append(row(
         "IR-Q08", "Is external file sharing restricted to identified "
                   "guests?",
@@ -751,15 +782,21 @@ def render_tenantfix(snap, findings):
 
 def render_tokenwatch(snap, inventory):
     out = header(snap, "TokenWatch - OAuth Grant Risk Inventory")
-    out += ["Risk = scope sensitivity x dormancy x consent type, with a "
-            "loading for unverified publishers. Grants are ranked highest "
-            "risk first.", ""]
+    out += ["Risk ranks scope sensitivity, consent type and publisher "
+            "verification. Time unused raises the score only when the "
+            "snapshot carries a real last-use date; exports from the "
+            "script carry none, so their grants show last used as "
+            "unknown and rank without a dormancy guess. Grants are "
+            "ranked highest risk first.", ""]
     for i in inventory:
         flag = "FLAGGED" if i["flagged"] else "ok"
+        last = i["last_used_days_ago"]
+        last_txt = ("last used unknown" if last is None
+                    else f"last used {last} days ago")
         out += [f"## {i['app']} - risk {i['risk']} [{flag}]",
                 f"Scopes: {', '.join(i['scopes'])} "
                 f"(scope score {i['scope_score']})",
-                f"Last used: {i['last_used_days_ago']} days ago | "
+                f"{last_txt.capitalize()} | "
                 f"Consent: {i['consent_type']} | "
                 f"Publisher verified: {i['publisher_verified']}"]
         if i["flag_reasons"]:
