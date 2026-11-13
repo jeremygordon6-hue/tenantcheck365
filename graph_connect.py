@@ -134,8 +134,8 @@ class GraphNotConfigured(GraphError):
     def __init__(self, missing):
         self.missing = list(missing)
         super().__init__(
-            "TenantCheck Microsoft app registration is not configured; "
-            "missing environment variable(s): " + ", ".join(self.missing))
+            "The live connection is not switched on yet. Setup on "
+            "the product owner's side is not finished.")
 
 
 # ---------------------------------------------------------------------------
