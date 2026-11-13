@@ -194,12 +194,20 @@ def main():
               "in the scan",
               "AI Governance Pack" in body
               and "acceptable-use policy" in body)
-        check("landing shows TenantFix founding price $149",
-              "$149" in body)
-        check("landing shows monitoring founding price $39/month",
-              "$39/month" in body)
-        check("landing shows bundle founding price $49/month",
-              "$49/month" in body)
+        check("landing shows TenantFix founding price $149 CAD",
+              "$149 CAD" in body)
+        check("landing shows monitoring founding price $39 CAD/month",
+              "$39 CAD/month" in body)
+        check("landing qualifies monitoring as a re-scan plan on "
+              "request (no automatic scheduler)",
+              "a re-scan plan: you send a fresh export" in body
+              and "No automatic scheduler yet" in body)
+        check("landing no longer promises re-scan alerts or "
+              "scheduled re-scans",
+              "re-scan alerts" not in body
+              and "scheduled re-scans" not in body)
+        check("landing shows bundle founding price $49 CAD/month",
+              "$49 CAD/month" in body)
         check("landing labels prices as founding prices",
               "Founding price" in body)
         # NOTE: the pre-Stripe version of this check asserted the
@@ -263,6 +271,10 @@ def main():
               "tenant admin consent" in body)
         check("live-connection states it is not switched on",
               "not switched on" in body)
+        check("live-connection describes monitoring as re-scans on "
+              "request today (no alerts-on-change claim)",
+              "re-scans on request" in body
+              and "alerts on change" not in body)
 
         # ---- SEO: metadata, sitemap, robots ----------------------
         status, _h, raw_home = request("GET", "/")
@@ -652,9 +664,13 @@ def main():
         status, _h, body = get("/google/live-connection")
         check("google pending: live-connection says setup is "
               "pending", status == 200 and "setup is pending" in body)
-        check("google pending: live-connection names what remains",
-              "TENANTCHECK_GOOGLE_SA_EMAIL" in body
-              and "TENANTCHECK_GOOGLE_SA_KEY" in body)
+        check("google pending: live-connection hides env names, "
+              "setup file names and the host",
+              "TENANTCHECK_GOOGLE_SA_EMAIL" not in body
+              and "TENANTCHECK_GOOGLE_SA_KEY" not in body
+              and "SETUP-GOOGLE" not in body
+              and "Render" not in body
+              and "environment variable" not in body.lower())
         check("google pending: live-connection explains domain-wide "
               "delegation", "Domain-wide delegation" in body
               or "domain-wide delegation" in body)
@@ -802,9 +818,13 @@ def main():
         status, _h, body = get("/live-connection")
         check("graph pending: live-connection says setup is pending",
               "setup is pending" in body)
-        check("graph pending: live-connection names what remains",
-              "TENANTCHECK_MS_CLIENT_ID" in body
-              and "TENANTCHECK_MS_CLIENT_SECRET" in body)
+        check("graph pending: live-connection hides env names, "
+              "setup file names and the host",
+              "TENANTCHECK_MS_CLIENT_ID" not in body
+              and "TENANTCHECK_MS_CLIENT_SECRET" not in body
+              and "SETUP-GRAPH" not in body
+              and "Render" not in body
+              and "environment variable" not in body.lower())
         status, _h, body = get("/connect")
         check("graph pending: connect page returns 200 and refuses "
               "gracefully", status == 200 and "Setup is pending" in body)
@@ -820,6 +840,104 @@ def main():
         check("graph pending: callback is graceful and records nothing",
               status == 200 and "Nothing was recorded" in body
               and read_connections() == before)
+
+        # ---- fix pass (2026-11-13): CAD, dormancy honesty,
+        # founding copy, env names off public pages, export scope
+        # + skipped mailboxes, headers/HEAD, CASL, nav, insurer
+        # claim ------------------------------------------------------
+        status, _h, body = get("/")
+        check("fix: landing labels its prices in CAD",
+              "$149 CAD" in body and "$39 CAD/month" in body
+              and "$49 CAD/month" in body)
+        check("fix: founding copy says checkout is open (no "
+              "cohort-opens waitlist text)",
+              "Checkout is open now at the founding prices above"
+              in body and "cohort opens" not in body)
+        check("fix: founding form carries the CASL consent line "
+              "(operator named, unsubscribe any time)",
+              "CanCheck is operated by Jeremy Gordon" in body
+              and "unsubscribe at any time" in body)
+        check("fix: insurer claim is the softened, cited form",
+              "many cyber-insurance renewal questionnaires now ask "
+              "for configuration" in body
+              and "insurers have stopped accepting" not in body)
+        check("fix: TokenWatch copy no longer ranks exports by "
+              "time unused; the demo date is labelled demo data",
+              "how long it has sat unused" not in body
+              and "Time unused changes" in body
+              and "demo snapshot" in body.lower()
+              and "last use stays unknown" in body)
+        check("fix: pages carry a skip link and an aria-labelled "
+              "nav", 'class="skip"' in body
+              and 'aria-label="Primary"' in body
+              and '<main id="main">' in body)
+        status, _h, body = get("/how-to-export")
+        check("fix: how-to-export names the least-privilege scope, "
+              "not Mail.Read, and no ExecutionPolicy Bypass",
+              "MailboxSettings.Read" in body
+              and "Mail.Read" not in body
+              and "ExecutionPolicy Bypass" not in body)
+        check("fix: how-to-export says grant last use is unknown "
+              "and skipped mailboxes are counted",
+              "last use as unknown" in body
+              and "counted as skipped" in body)
+        for pth in ("/connect", "/google/connect",
+                    "/google/live-connection"):
+            status, _h, body = get(pth)
+            check(f"fix: {pth} hides env names, setup files and "
+                  "the host", status == 200
+                  and "TENANTCHECK_" not in body
+                  and "SETUP-G" not in body
+                  and "Render" not in body
+                  and "environment variable" not in body.lower())
+        status, headers, _raw = request("GET", "/")
+        check("fix: responses carry the five security headers",
+              status == 200
+              and headers.get("Strict-Transport-Security")
+              == "max-age=31536000"
+              and headers.get("X-Content-Type-Options") == "nosniff"
+              and headers.get("X-Frame-Options") == "DENY"
+              and headers.get("Referrer-Policy") == "same-origin"
+              and "default-src 'self'" in headers.get(
+                  "Content-Security-Policy", ""))
+        status, headers, hbody = request("HEAD", "/")
+        check("fix: HEAD / answers like GET (200, headers, no "
+              "body)", status == 200 and hbody == ""
+              and headers.get("X-Frame-Options") == "DENY")
+        status, _h, _b = request("HEAD", "/no-such-page")
+        check("fix: HEAD on an unknown path is 404, not 501",
+              status == 404)
+        status, _h, body = get("/.well-known/security.txt")
+        check("fix: security.txt published with the contact "
+              "address", status == 200
+              and "Contact: mailto:jeremygordon6@gmail.com" in body)
+        script = open(os.path.join(
+            APP_DIR, "tools", "tenantcheck-export.ps1"),
+            encoding="utf-8").read()
+        check("fix: export script asks for MailboxSettings.Read, "
+              "not Mail.Read",
+              '"MailboxSettings.Read"' in script
+              and '"Mail.Read"' not in script)
+        check("fix: export script counts skipped mailboxes and "
+              "writes exportCoverage",
+              "mailboxesSkipped" in script
+              and "exportCoverage" in script
+              and "ExecutionPolicy Bypass" not in script)
+        # A snapshot whose export skipped mailboxes must read the
+        # forwarding answer as evidence missing, never as a pass.
+        fixture = json.loads(open(os.path.join(
+            APP_DIR, "tools", "sample-script-output.json"),
+            encoding="utf-8").read())
+        fixture["exportCoverage"] = {"mailboxesChecked": 4,
+                                     "mailboxesSkipped": 2}
+        status, _h, body = post_multipart(
+            "/scan/upload", "snapshot", "skipped.json",
+            json.dumps(fixture).encode())
+        check("fix: skipped mailboxes surface as evidence missing "
+              "on IR-Q07",
+              status == 200 and "Evidence missing" in body
+              and "could not be read by the export" in body
+              and "2 mailbox(es) could not be read" in body)
 
         # ---- live Graph connection: CONFIGURED server (fake env) ---
         port2 = 8797
