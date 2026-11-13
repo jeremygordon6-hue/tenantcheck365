@@ -43,6 +43,11 @@
   * How long ago each third-party app grant was last used is not
     exposed by Graph. lastUsedDaysAgo is written as null for every
     grant; the scan then scores dormancy neutrally instead of guessing.
+  * If a mailbox's inbox rules cannot be read (no mailbox on the
+    account, or no access to it), the script counts that mailbox as
+    skipped and writes the count into the export as exportCoverage.
+    The scan reports the forwarding answer for those mailboxes as
+    evidence missing, never as "no rules found".
   * How broadly a guest account can reach inside the tenant is not
     exposed by Graph. guestAccessLevel is written as null; the scan
     never flags a guest on a guess. Review guest access manually.
@@ -68,7 +73,9 @@
   the current folder.
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File .\tenantcheck-export.ps1
+  Unblock-File -LiteralPath .\tenantcheck-export.ps1
+  Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+  .\tenantcheck-export.ps1
 
 .NOTES
   Requirements: Windows PowerShell 5.1 or PowerShell 7, the Microsoft
@@ -95,9 +102,11 @@ $Scopes = @(
     "Sites.Read.All",    # site and library PERMISSION LISTS for the
                          # Copilot oversharing audit. Permission
                          # settings only - never file contents.
-    "Mail.Read"          # used ONLY for inbox rule definitions (rule
-                         # settings such as forwarding targets). The
-                         # script never reads message contents.
+    "MailboxSettings.Read"  # inbox rules only (rule settings such as
+                         # forwarding targets). MailboxSettings.Read is
+                         # the least-privileged permission that covers
+                         # listing a mailbox's inbox rules - it exposes
+                         # rule settings, never message contents.
 )
 
 # Fields that ended up as fail-safe defaults because the owner answered
@@ -281,14 +290,22 @@ $enabledMembers = @($usersOut | Where-Object { $_.accountEnabled -and $_.account
 Write-Host "  Users: $($usersOut.Count) accounts ($($enabledMembers.Count) enabled members)."
 
 # ------------------------------------------------------------- inbox rules -
+# Mailboxes the script cannot read are COUNTED, not passed over
+# silently: the counts go into the snapshot as exportCoverage, and
+# the scan reports the forwarding answer as evidence missing for
+# skipped mailboxes - never as "no rules found".
 $rulesOut = New-Object System.Collections.Generic.List[object]
+$mailboxesChecked = 0
+$mailboxesSkipped = 0
 foreach ($u in $graphUsers) {
     if ("$($u.UserType)" -eq "Guest") { continue }
     $mailboxRules = @()
     try {
         $mailboxRules = @(Get-MgUserMailFolderMessageRule -UserId $u.Id `
             -MailFolderId "inbox" -All -ErrorAction Stop)
+        $mailboxesChecked++
     } catch {
+        $mailboxesSkipped++
         continue   # no mailbox on this account, or no access to it
     }
     foreach ($r in $mailboxRules) {
@@ -322,7 +339,7 @@ foreach ($u in $graphUsers) {
         })
     }
 }
-Write-Host "  Inbox rules: $($rulesOut.Count) read (rule settings only, never message contents)."
+Write-Host "  Inbox rules: $($rulesOut.Count) read from $mailboxesChecked mailboxes (rule settings only, never message contents); $mailboxesSkipped mailboxes could not be read and are recorded as skipped in the export."
 
 # -------------------------------------------------------------- oauth grants -
 $spById = @{}
@@ -720,6 +737,10 @@ $snapshot = [ordered]@{
         source_shape   = "Built by tools/tenantcheck-export.ps1 from Microsoft Graph (users, authentication method registrations, directory role assignments, inbox rules, OAuth2 permission grants, service principals, Conditional Access policies, organization, site and library permission lists) plus owner-stated answers entered during the script run."
     }
     users = @($usersOut)
+    exportCoverage = [ordered]@{
+        mailboxesChecked = $mailboxesChecked
+        mailboxesSkipped = $mailboxesSkipped
+    }
     inboxRules = @($rulesOut)
     oauthGrants = @($grantsOut)
     sharingInventory = @($sharingOut)
@@ -765,6 +786,7 @@ if (-not [System.IO.Path]::IsPathRooted($outPath)) {
 Write-Host ""
 Write-Host "Done. Snapshot written to: $outPath"
 Write-Host "  $($usersOut.Count) users, $($rulesOut.Count) inbox rules, $($grantsOut.Count) app grants, $($sharingOut.Count) sharing inventory items."
+Write-Host "  Mailboxes checked for inbox rules: $mailboxesChecked; skipped (could not be read): $mailboxesSkipped."
 if ($DefaultedAnswers.Count -gt 0) {
     Write-Host ""
     Write-Host "Answers recorded as 'no evidence' because they were not"
