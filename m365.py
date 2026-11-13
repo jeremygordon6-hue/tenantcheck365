@@ -47,6 +47,76 @@ GLOBAL_ADMIN_LIMIT = 3          # for a tenant of this size, per checklist
 DORMANT_ADMIN_DAYS = 90
 PASSWORD_MIN_LENGTH = 12
 
+# Plain-English meanings for the scopes TokenWatch reports, so the
+# AI-apps view (and the broker pack) can say what an app can actually
+# do without the reader knowing Graph scope names. Unknown scopes are
+# shown as-is and labelled uninterpreted — never paraphrased wrongly.
+SCOPE_PLAIN = {
+    "Directory.ReadWrite.All": "read and change the whole directory "
+                               "(accounts, groups, roles)",
+    "Mail.ReadWrite": "read and change email",
+    "Files.ReadWrite.All": "read and change all files",
+    "User.ReadWrite.All": "read and change all user accounts",
+    "Sites.ReadWrite.All": "read and change all SharePoint sites",
+    "Mail.Send": "send email as the user",
+    "Directory.Read.All": "read the whole directory",
+    "Mail.Read": "read email",
+    "Files.Read.All": "read all files",
+    "offline_access": "keep access when the user is signed out "
+                      "(refresh tokens)",
+    "Calendars.Read": "read calendars",
+    "Chat.Read": "read chat messages",
+    "User.Read": "read the signed-in user's profile",
+}
+
+# Known AI services, identified by NAME only (see ai_label_for).
+# This is a maintained list, not a detection technology: an AI tool
+# whose app name matches none of these keys is not identified, and
+# the reports say exactly that. Keys are matched case-insensitively
+# as substrings of the grant's app display name.
+AI_APP_KEYS = [
+    ("chatgpt", "ChatGPT (OpenAI)"),
+    ("openai", "OpenAI"),
+    ("chatpdf", "ChatPDF (AI document chat)"),
+    ("copilot", "Microsoft Copilot"),
+    ("claude", "Claude (Anthropic)"),
+    ("anthropic", "Anthropic"),
+    ("gemini", "Google Gemini"),
+    ("perplexity", "Perplexity AI"),
+    ("grammarly", "Grammarly (AI writing assistant)"),
+    ("otter", "Otter.ai (meeting transcription)"),
+    ("fireflies", "Fireflies.ai (meeting notes)"),
+    ("read ai", "Read AI (meeting notes)"),
+    ("notion", "Notion (incl. Notion AI)"),
+    ("zoom ai", "Zoom AI Companion"),
+    ("jasper", "Jasper AI"),
+    ("writesonic", "Writesonic"),
+    ("deepl", "DeepL (AI translation)"),
+    ("midjourney", "Midjourney"),
+]
+
+AI_IDENTIFICATION_NOTE = (
+    "AI tools are identified by app name against a maintained list "
+    "of known AI services. An AI tool whose name does not match the "
+    "list would not be flagged here, and a non-AI app with an "
+    "AI-sounding name could be listed — the owner confirms each "
+    "one.")
+
+
+def ai_label_for(app_display_name):
+    """Return the AI service label for an app display name, or None.
+    Name-based identification only — see AI_IDENTIFICATION_NOTE."""
+    name = (app_display_name or "").lower()
+    for key, label in AI_APP_KEYS:
+        if key in name:
+            return label
+    return None
+
+
+def scopes_plain(scopes):
+    return [SCOPE_PLAIN.get(s, f"{s} (scope name as granted)")
+            for s in scopes]
+
 
 # ---------------------------------------------------------------- engine ----
 def load_snapshot(path):
@@ -256,18 +326,27 @@ def tokenwatch(snap):
             reasons.append("high-value scopes consented by one user, "
                            "not reviewed by an admin")
         flagged = bool(reasons) and (risk >= 25 or ss >= 15)
+        ai_label = ai_label_for(g["appDisplayName"])
         inventory.append({
             "module": "TokenWatch", "app": g["appDisplayName"],
             "scopes": g["scopes"], "scope_score": ss,
+            "scopes_plain": scopes_plain(g["scopes"]),
             "last_used_days_ago": g["lastUsedDaysAgo"],
             "consent_type": ("user-consented (single user)"
                              if g["consentType"] == "Principal"
                              else "admin-consented (tenant-wide)"),
+            "consented_by": g.get("consentedBy") or "",
             "publisher_verified": g["publisherVerified"],
             "risk": risk, "flagged": flagged, "flag_reasons": reasons,
+            "is_ai": ai_label is not None, "ai_label": ai_label,
         })
     inventory.sort(key=lambda x: x["risk"], reverse=True)
     return inventory
+
+
+def ai_apps(inventory):
+    """The AI-identified subset of a TokenWatch inventory."""
+    return [i for i in inventory if i.get("is_ai")]
 
 
 # ----------------------------------------------------------- InsureReady ----
@@ -312,14 +391,28 @@ def insureready(snap, norm, tf_findings, tw_inventory):
            if "TF-LEGACY-AUTH" in checks else "disabled."),
         "" if "TF-LEGACY-AUTH" not in checks else
         "Legacy protocols bypass MFA; most questionnaires ask this directly."))
-    rows.append(row(
-        "IR-Q04", "Are Conditional Access policies in place?",
-        "Supported" if c["conditionalAccessPolicyCount"] >= 1 else "Gap",
-        f"Scan evidence: {c['conditionalAccessPolicyCount']} Conditional "
-        f"Access policies found in the snapshot.",
-        "" if c["conditionalAccessPolicyCount"] >= 1 else
-        "No policy enforces the MFA and legacy-auth answers above; they "
-        "rest on user behaviour only."))
+    ca_count = c.get("conditionalAccessPolicyCount")
+    if ca_count is None:
+        rows.append(row(
+            "IR-Q04", "Are Conditional Access policies in place?",
+            "Evidence missing",
+            "Scan evidence: no Conditional Access policy count was "
+            "recorded in this snapshot, so the question cannot be "
+            "answered from evidence. (Exports from platforms without "
+            "a Conditional Access equivalent record nothing here.)",
+            "Owner to complete: if the platform in use has an "
+            "equivalent sign-in policy system, record its policy "
+            "count in the export; otherwise answer from the admin "
+            "console directly."))
+    else:
+        rows.append(row(
+            "IR-Q04", "Are Conditional Access policies in place?",
+            "Supported" if ca_count >= 1 else "Gap",
+            f"Scan evidence: {ca_count} Conditional "
+            f"Access policies found in the snapshot.",
+            "" if ca_count >= 1 else
+            "No policy enforces the MFA and legacy-auth answers above; "
+            "they rest on user behaviour only."))
     rows.append(row(
         "IR-Q05", "Is endpoint detection and response (EDR) deployed on "
                   "all endpoints?",
@@ -411,6 +504,225 @@ def insureready(snap, norm, tf_findings, tw_inventory):
         "" if c["automaticUpdatesEnabled"] else
         "Manual updating is not the automatic patching this question "
         "describes."))
+
+    # ---- Expansion (2026-11-13): IR-Q14..Q25 -------------------------
+    # Every question below is mapped to exactly one honest evidence
+    # source: an existing snapshot field or module result, a new
+    # owner-stated securityControls field (read with .get() so older
+    # exports answer "Evidence missing" rather than failing), or no
+    # source at all — in which case the answer is always "Evidence
+    # missing" with owner guidance. Nothing is inferred from data
+    # that does not speak to the question.
+
+    pol = snap["tenantSettings"]["passwordPolicy"]
+    pw_ok = pol["minimumLength"] >= PASSWORD_MIN_LENGTH \
+        and pol["complexityRequired"]
+    rows.append(row(
+        "IR-Q14", "Does the password policy require long, complex "
+                  "passwords (at least 12 characters, with complexity)?",
+        "Supported" if pw_ok else "Gap",
+        f"Scan evidence: tenant password policy requires a minimum "
+        f"length of {pol['minimumLength']} characters; complexity "
+        f"required: {pol['complexityRequired']}.",
+        "" if pw_ok else
+        "The tenant policy is weaker than the wording of this "
+        "question (see the TenantFix password-policy finding). "
+        "MFA is the real protection; this is the backstop."))
+
+    dormant = [u for u in members
+               if u.get("lastSignInDaysAgo") is not None
+               and u["lastSignInDaysAgo"] > DORMANT_ADMIN_DAYS]
+    rows.append(row(
+        "IR-Q15", "Are accounts that have not signed in for over 90 "
+                  "days disabled or removed promptly?",
+        "Gap" if dormant else "Supported",
+        "Scan evidence: enabled accounts with no sign-in for over "
+        f"{DORMANT_ADMIN_DAYS} days: "
+        + (", ".join(f"{u['displayName']} "
+                     f"({u['lastSignInDaysAgo']} days)"
+                     for u in dormant) if dormant else "none") + ".",
+        "" if not dormant else
+        "Dormant accounts keep working credentials nobody watches. "
+        "An account the firm cannot explain should be disabled "
+        "until its owner confirms it is still needed."))
+
+    rows.append(row(
+        "IR-Q16", "Are third-party applications connected to your "
+                  "systems reviewed and approved before use?",
+        "Gap" if flagged_apps else "Supported",
+        "Scan evidence: TokenWatch flagged "
+        f"{len(flagged_apps)} connected app(s) for risky grants: "
+        + (", ".join(flagged_apps) if flagged_apps else "none")
+        + f". Total grants inventoried: {len(tw_inventory)}.",
+        "" if not flagged_apps else
+        "Flagged grants were approved without the review this "
+        "question describes, or have outlived it. Each one should "
+        "be confirmed by its owner or revoked."))
+
+    inventory = snap.get("sharingInventory")
+    anyone_links = None
+    if isinstance(inventory, list):
+        anyone_links = sum((i.get("anyoneLinks") or 0)
+                           for i in inventory if isinstance(i, dict))
+    sharing_gap = "TF-SHARING" in checks \
+        or (anyone_links is not None and anyone_links > 0)
+    if anyone_links is None:
+        sharing_evidence = (
+            "Scan evidence: external sharing capability is '"
+            + snap["tenantSettings"]["externalSharingCapability"]
+            + "'. This snapshot has no sharing inventory, so "
+              "anonymous links on individual sites were not counted.")
+    else:
+        sharing_evidence = (
+            "Scan evidence: external sharing capability is '"
+            + snap["tenantSettings"]["externalSharingCapability"]
+            + f"'; anonymous (\"anyone with the link\") links found "
+              f"in the site and library permission lists: "
+              f"{anyone_links}.")
+    rows.append(row(
+        "IR-Q17", "Is external file sharing restricted and reviewed, "
+                  "including anonymous sharing links?",
+        "Gap" if sharing_gap else "Supported",
+        sharing_evidence,
+        "" if not sharing_gap else
+        "Sharing broader than named, identified guests — and any "
+        "anonymous link — is wider than the restricted sharing this "
+        "question describes. See the CopilotReady audit for the "
+        "per-site detail."))
+
+    policy_doc = c.get("writtenSecurityPolicyDocumented")
+    rows.append(row(
+        "IR-Q18", "Is there a written information security policy "
+                  "that staff can point to?",
+        "Supported" if policy_doc else "Evidence missing",
+        "Owner-stated in the snapshot: writtenSecurityPolicy"
+        f"Documented = {policy_doc}.",
+        "" if policy_doc else
+        "No written policy is evidenced in the snapshot. Answer "
+        "this from the document itself: if the firm has one, record "
+        "it in the export answers; if it does not, the honest "
+        "answer to the broker is 'no' until one is adopted."))
+
+    pentest_months = c.get("penetrationTestLastMonthsAgo")
+    if pentest_months is None:
+        pentest_status = "Evidence missing"
+        pentest_evidence = ("Owner-stated in the snapshot: no "
+                            "penetration test or vulnerability "
+                            "assessment date was recorded.")
+        pentest_gap = ("The snapshot records no test date, so this "
+                       "cannot be answered from evidence. If a test "
+                       "or assessment was done, record when; if "
+                       "none was done, the honest answer is 'no'.")
+    elif pentest_months <= 12:
+        pentest_status = "Supported"
+        pentest_evidence = (f"Owner-stated in the snapshot: last "
+                            f"penetration test or vulnerability "
+                            f"assessment {pentest_months} month(s) "
+                            f"ago.")
+        pentest_gap = ""
+    else:
+        pentest_status = "Gap"
+        pentest_evidence = (f"Owner-stated in the snapshot: last "
+                            f"penetration test or vulnerability "
+                            f"assessment {pentest_months} month(s) "
+                            f"ago.")
+        pentest_gap = ("The last test is older than the 12 months "
+                       "this question asks about, so a plain 'yes' "
+                       "would overstate it.")
+    rows.append(row(
+        "IR-Q19", "Has an independent penetration test or "
+                  "vulnerability assessment been completed in the "
+                  "last 12 months?",
+        pentest_status, pentest_evidence, pentest_gap))
+
+    rows.append(row(
+        "IR-Q20", "Is guest and external user access limited to what "
+                  "each guest needs, and reviewed?",
+        "Gap" if "TF-GUEST-BROAD" in checks else "Supported",
+        f"Scan evidence: {len(norm['guests'])} guest account(s) in "
+        f"the tenant; guests recorded with broad internal access: "
+        f"{sum(1 for f in tf_findings if f['check'] == 'TF-GUEST-BROAD')}.",
+        "" if "TF-GUEST-BROAD" not in checks else
+        "A guest with broad internal access can reach far more than "
+        "the work they were invited for, which contradicts a "
+        "'limited and reviewed' answer."))
+
+    immutable = c.get("backupOfflineOrImmutableCopy")
+    if immutable is None:
+        immutable_status = "Evidence missing"
+        immutable_evidence = ("Owner-stated in the snapshot: "
+                              "whether a backup copy is offline or "
+                              "immutable was not recorded.")
+        immutable_gap = ("Backups are covered at IR-Q06, but this "
+                         "question asks about a copy ransomware "
+                         "cannot reach or alter. Record the answer "
+                         "in the export; until then it cannot be "
+                         "evidenced.")
+    else:
+        immutable_status = "Supported" if immutable else "Gap"
+        immutable_evidence = ("Owner-stated in the snapshot: an "
+                              "offline or immutable backup copy "
+                              f"exists: {immutable}.")
+        immutable_gap = ("" if immutable else
+                         "All backup copies are reachable from the "
+                         "live environment, so ransomware that owns "
+                         "the tenant could encrypt or delete them "
+                         "too — the exact scenario this question "
+                         "probes.")
+    rows.append(row(
+        "IR-Q21", "Is at least one backup copy kept offline or in "
+                  "immutable storage that ransomware cannot alter?",
+        immutable_status, immutable_evidence, immutable_gap))
+
+    rows.append(row(
+        "IR-Q22", "Has the business had a cyber incident, data "
+                  "breach, or cyber-insurance claim in the last "
+                  "3 years?",
+        "Evidence missing",
+        "No scan evidence: a tenant snapshot holds current settings "
+        "and accounts. It cannot show incident or claims history, "
+        "and nothing here should be read as 'none'.",
+        "Owner to complete from the firm's own records before "
+        "submitting. Insurers ask this directly and check claims "
+        "history independently — an inaccurate answer here can void "
+        "a policy, so this one is never answered from a scan."))
+    rows.append(row(
+        "IR-Q23", "What sensitive data does the business hold — "
+                  "personal records, health or financial data, "
+                  "payment card data — and roughly how much?",
+        "Evidence missing",
+        "No scan evidence: the scan reads permissions and settings, "
+        "never file contents, so it cannot count records or tell "
+        "whether payment card data is stored.",
+        "Owner to complete from the firm's data inventory. If the "
+        "firm takes payment cards directly rather than through a "
+        "payment provider, say so — underwriters price that "
+        "differently and may ask about PCI duties."))
+    rows.append(row(
+        "IR-Q24", "Is MFA required for remote access to the "
+                  "business network (VPN, remote desktop, cloud "
+                  "admin portals)?",
+        "Evidence missing",
+        "No scan evidence: the snapshot shows MFA registration for "
+        "Microsoft 365 accounts (IR-Q01), but it contains nothing "
+        "about VPN, remote-desktop or network-level access, which "
+        "may be separate systems.",
+        "Owner to complete for each remote-access route into the "
+        "business. Do not let the Microsoft 365 MFA answer stand in "
+        "for a VPN or remote-desktop answer unless the same system "
+        "genuinely covers both."))
+    rows.append(row(
+        "IR-Q25", "Is email authentication enforced for the "
+                  "business domain (SPF, DKIM and a DMARC policy "
+                  "that rejects spoofed mail)?",
+        "Evidence missing",
+        "No scan evidence: email authentication lives in the "
+        "domain's public DNS records, which a tenant snapshot does "
+        "not contain. This scan does not read DNS.",
+        "Owner to complete from the domain's DNS records, or run a "
+        "dedicated email-authentication check and attach it. "
+        "Underwriters increasingly test this themselves from the "
+        "same public records."))
     return rows
 
 
@@ -456,22 +768,89 @@ def render_tokenwatch(snap, inventory):
                     "this app; if not, revoke the grant (production step, "
                     "owner approved)."]
         out += [""]
+    ais = ai_apps(inventory)
+    out += ["## AI apps in this tenant", "",
+            AI_IDENTIFICATION_NOTE, "",
+            f"AI apps identified: {len(ais)} "
+            f"(flagged by TokenWatch risk: "
+            f"{sum(1 for i in ais if i['flagged'])})", ""]
+    if not ais:
+        out += ["No connected app was identified as an AI tool by "
+                "name. That is not proof the firm uses no AI tools — "
+                "only that none of the connected app names matched "
+                "the known list.", ""]
+    for i in ais:
+        last = i["last_used_days_ago"]
+        last_txt = ("last used unknown" if last is None
+                    else f"last used {last} days ago")
+        flag = "FLAGGED" if i["flagged"] else "not flagged"
+        out += [f"### {i['app']} — identified as {i['ai_label']}",
+                f"Consent: {i['consent_type']}"
+                + (f" ({i['consented_by']})" if i["consented_by"]
+                   else "")
+                + f" | {last_txt} | Risk {i['risk']} [{flag}]",
+                "What it can do: "
+                + "; ".join(i["scopes_plain"]) + "."]
+        if i["flag_reasons"]:
+            out += ["Flag reasons: " + "; ".join(i["flag_reasons"])]
+        out += [""]
     return "\n".join(out)
 
 
+ANSWER_WORDING = {
+    "Supported": "Yes — supported by scan evidence",
+    "Gap": "No / not fully — see the gap note below",
+    "Evidence missing": "Owner to complete — no evidence in this scan",
+}
+
+
 def render_insureready(snap, rows):
-    out = header(snap, "InsureReady 365 - Cyber Insurance Evidence Pack")
-    out += ["Representative questionnaire: a typical Canadian SMB cyber "
-            "insurance evidence questionnaire, not a specific insurer's "
-            "form. Each answer below is tied to scan evidence from the "
-            "same snapshot.", ""]
+    """The broker pack: the InsureReady questionnaire restructured as
+    a document the owner can hand to a cyber-insurance broker —
+    plain answers first, scan evidence behind each one, and an
+    owner-review section at the end. It stays a representative
+    questionnaire, never a specific insurer's form."""
+    out = header(snap, "InsureReady 365 - Cyber Insurance "
+                       "Questionnaire Pack")
+    supported = sum(1 for r in rows if r["status"] == "Supported")
+    gaps = sum(1 for r in rows if r["status"] == "Gap")
+    missing = sum(1 for r in rows if r["status"] == "Evidence missing")
+    out += [
+        "Prepared for the firm's cyber-insurance broker or insurer "
+        "at renewal. Representative questionnaire: the questions a "
+        "typical Canadian SMB cyber-insurance application asks, not "
+        "a specific insurer's form. Every answer below is tied to "
+        "scan evidence from the same snapshot, or is marked for the "
+        "owner to complete — nothing is answered from a guess.", "",
+        "## Summary", "",
+        f"- Questions in this pack: {len(rows)}",
+        f"- \"Yes — supported by scan evidence\": {supported}",
+        f"- \"No / not fully\": {gaps}",
+        f"- \"Owner to complete\": {missing}", "",
+        "## The questionnaire", ""]
     for r in rows:
-        out += [f"## {r['id']} - {r['question']}",
-                f"Answer supported by evidence: **{r['status']}**",
-                r["evidence"]]
+        out += [f"### {r['id']} — {r['question']}",
+                f"**Answer: {ANSWER_WORDING[r['status']]}**",
+                f"Evidence: {r['evidence']}"]
         if r["gap"]:
             out += [f"Gap: {r['gap']}"]
         out += [""]
+    out += [
+        "## Before you give this pack to a broker or insurer", "",
+        "This pack is evidence prepared for the owner's review — "
+        "it is not a submitted application and nothing in it has "
+        "been attested. Before handing it over:", "",
+        "1. Read every answer and confirm it is true for your firm "
+        "today. If a scan answer no longer matches reality, correct "
+        "the answer, not the evidence.",
+        "2. Complete every \"Owner to complete\" item from your own "
+        "records. Those questions are ones a scan cannot answer, "
+        "and leaving them blank is better than guessing.",
+        "3. Insurers treat answers on an application as fact at "
+        "claim time. An answer that was wrong when given — even "
+        "from an honest mistake — can give an insurer grounds to "
+        "deny a claim, so the owner, not this tool, owns every "
+        "answer that leaves the firm.", ""]
     return "\n".join(out)
 
 
@@ -497,7 +876,7 @@ def verify(snap, out_dir):
           meta.get("fictional") is True)
     check("engine: users normalised", len(norm["users"]) == 18,
           f"{len(norm['users'])} users")
-    check("engine: OAuth grants normalised", len(tw) == 8,
+    check("engine: OAuth grants normalised", len(tw) == 10,
           f"{len(tw)} grants")
     check("engine: global admins counted",
           len(norm["global_admins"]) == 4,
@@ -527,7 +906,7 @@ def verify(snap, out_dir):
     check("TokenWatch: no unexpected flagged grants",
           flagged == set(planted["tokenwatch_flagged"]),
           f"flagged: {sorted(flagged)}")
-    check("TokenWatch: inventory covers every grant", len(tw) == 8)
+    check("TokenWatch: inventory covers every grant", len(tw) == 10)
     risks = [i["risk"] for i in tw]
     check("TokenWatch: inventory ranked by risk descending",
           risks == sorted(risks, reverse=True), f"risks: {risks}")
