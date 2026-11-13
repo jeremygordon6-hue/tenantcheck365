@@ -453,14 +453,19 @@ def render_google_inventory(snap, inventory):
     out = m365.header(snap, "TenantCheck for Google Workspace - "
                             "Third-Party App Inventory")
     out += ["Third-party apps with access to the domain, ranked by "
-            "scope sensitivity x dormancy, with a loading for "
-            "untrusted apps.", ""]
+            "scope sensitivity, with a loading for untrusted apps. "
+            "Time unused raises the score only when the snapshot "
+            "carries a real last-use date; Google exports usually "
+            "carry none, so their apps show last used as unknown.", ""]
     for i in inventory:
         flag = "FLAGGED" if i["flagged"] else "ok"
+        last = i["last_used_days_ago"]
+        last_txt = ("last used unknown" if last is None
+                    else f"last used {last} days ago")
         out += [f"## {i['app']} - risk {i['risk']} [{flag}]",
                 "Scopes in plain English: "
                 + "; ".join(i["scopes_plain"]),
-                f"Last used: {i['last_used_days_ago']} days ago | "
+                f"{last_txt.capitalize()} | "
                 f"Users with access: {i['users_with_access']} | "
                 f"Trusted by the domain: "
                 f"{i['publisher_verified']}"]
