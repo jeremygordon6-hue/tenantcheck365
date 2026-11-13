@@ -15,12 +15,23 @@ One brand over the three verified M365-cluster modules:
                       permission inventory and reports what Microsoft
                       Copilot could surface to staff who should not
                       see it. Included in the scan; no separate price.
+  * Sign-in rules evidence, a scan-to-scan change report, and an
+                      AI Governance Pack are produced with every scan
+                      (app.py; the change report is in-product only —
+                      no email alerts, no scheduler).
+  * Google Workspace companion (google_check.py): an export-based
+                      scan for Google domains at /google — same
+                      pattern, no live Google connection, no Google
+                      credentials collected.
 
 Stack: Python standard library only — http.server, server-rendered
 HTML with inline CSS, no JavaScript frameworks, no external requests.
 All checking logic is the verified prototype engine in m365.py,
-imported and reused, not rewritten (the engine file is a byte-identical
-copy of ../m365-cluster/m365.py, verified 40/40 on the demo snapshot).
+imported and reused (the engine began as a byte-identical
+copy of ../m365-cluster/m365.py and has since been extended in
+place — InsureReady 25 questions + broker pack, TokenWatch AI
+apps view — re-verified after every change: engine 53/53,
+app suite green).
 
 SCAN INPUT — HONEST BY DESIGN: scans run on an EXPORTED tenant
 snapshot (JSON shaped like Microsoft Graph responses) that the visitor
@@ -51,17 +62,20 @@ from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import m365  # the verified prototype engine (copied in byte-identical)
+import m365  # the scan engine (TenantFix/TokenWatch/InsureReady)
 import copilot_audit  # Copilot oversharing audit (companion module;
                       # runs on the snapshot's sharingInventory)
 import graph_connect  # live Microsoft Graph connection (inactive
                       # until the TENANTCHECK_MS_* env vars are set)
+import google_check  # Google Workspace companion (export-based;
+                      # no live Google connection, no credentials)
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(APP_DIR, "data")
 FOUNDING_PATH = os.path.join(DATA_DIR, "founding.json")
 SCANS_PATH = os.path.join(DATA_DIR, "scans.json")
 DEMO_SNAPSHOT_PATH = os.path.join(APP_DIR, "demo_snapshot.json")
+DEMO_GOOGLE_PATH = os.path.join(APP_DIR, "demo_google_snapshot.json")
 EXPORT_SCRIPT_PATH = os.path.join(APP_DIR, "tools",
                                   "tenantcheck-export.ps1")
 
@@ -224,13 +238,35 @@ PAGE_SEO = {
             "and fix steps, a ranked inventory of app grants, and "
             "insurer questions mapped from the same scan.",
     },
+    "TenantCheck for Google Workspace": {
+        "path": "/google",
+        "description":
+            "The Google Workspace companion to TenantCheck 365: "
+            "2-Step Verification gaps, dormant and admin accounts, "
+            "third-party and AI app access, Drive sharing — from an "
+            "export, never a Google sign-in.",
+    },
+    "How to export your Google Workspace snapshot": {
+        "path": "/google/how-to-export",
+        "description":
+            "Export your Google Workspace settings as one JSON "
+            "snapshot with the Admin SDK or GAM: exactly which "
+            "sections the scan needs and where each comes from.",
+    },
+    "Google Workspace scan results": {
+        "description":
+            "Your Google Workspace scan results: findings and fix "
+            "steps, a third-party app inventory with an AI apps "
+            "view, and the same insurance questionnaire answered "
+            "from the same export.",
+    },
 }
 
 # The public GET pages a crawler may index — never result views,
 # report downloads or the export-script download, whose URLs are
 # per-record or file downloads.
 SITEMAP_PATHS = ["/", "/scan", "/how-to-export", "/live-connection",
-                 "/connect"]
+                 "/connect", "/google", "/google/how-to-export"]
 
 
 def sitemap_xml():
@@ -271,7 +307,7 @@ def home_json_ld():
          "forwarding mail outside the business, anonymous file "
          "sharing, too many Global Administrators, dormant admin "
          "accounts, broad guest access, and weak password policy — "
-         "plus an inventory of every third-party app grant, 13 "
+         "plus an inventory of every third-party app grant, 25 "
          "cyber-insurance questions, and a Copilot oversharing "
          "audit of your site and library permissions."),
         ("Do I have to give TenantCheck 365 my Microsoft password?",
@@ -281,7 +317,7 @@ def home_json_ld():
          "live connection works only through an app registration "
          "plus consent granted by your own administrator."),
         ("How does TenantCheck 365 help with cyber insurance?",
-         "InsureReady 365 maps the same scan to the 13 questions a "
+         "InsureReady 365 maps the same scan to the 25 questions a "
          "typical Canadian cyber-insurance renewal asks — MFA, "
          "legacy auth, EDR coverage, tested backups, admin limits, "
          "training, incident response — each answered Supported, "
@@ -441,13 +477,16 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   after everyone forgot it. TokenWatch inventories every OAuth grant
   and ranks it by what it can reach, how long it has sat unused, and
   whether one user approved it alone, with extra weight on unverified
-  publishers. These grants bypass MFA entirely.</p>
+  publishers. These grants bypass MFA entirely. The inventory also
+  carries an AI apps view: connected apps identified by name as AI
+  tools (meeting note-takers, AI writing and chat apps and the
+  like), with what each one can read, in plain English.</p>
   <p>Included in the bundle below.</p>
 </div>
 
 <div class="card">
   <h2>InsureReady 365 <span class="badge">Module 3 — live</span></h2>
-  <p>Thirteen questions a typical Canadian cyber-insurance renewal
+  <p>Twenty-five questions a typical Canadian cyber-insurance renewal
   asks — MFA, legacy auth, EDR coverage, tested backups, admin limits,
   training, incident response — each answered <em>Supported</em>,
   <em>Gap</em>, or <em>Evidence missing</em> from the same scan, with
@@ -470,6 +509,17 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
 </div>
 
 <div class="card">
+  <h2>AI Governance Pack <span class="badge">Included in the scan</span></h2>
+  <p>Every scan also produces an AI Governance Pack: the AI tools
+  TokenWatch identified in your tenant, the CopilotReady
+  oversharing summary, a ready-to-adopt AI acceptable-use policy
+  template written for a small firm, and an evidence page tying
+  them together. The template is a starting document for the owner
+  to review and adopt — not legal advice.</p>
+  <p>Included in the scan — no separate price.</p>
+</div>
+
+<div class="card">
   <h2>The bundle <span class="badge">All three modules</span></h2>
   <p>TenantFix + TokenWatch + InsureReady on one tenant scan engine,
   with the CopilotReady oversharing audit included in every scan,
@@ -480,6 +530,17 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   <p class="small">Founding prices are the introductory prices for the
   first cohort, and checkout is open now. Join the list below and
   founding pricing is locked for you.</p>
+</div>
+
+<div class="card">
+  <h2>TenantCheck for Google Workspace <span class="badge">Export-based — new</span></h2>
+  <p>On Google Workspace instead of Microsoft 365? The companion
+  scan checks the same ground — 2-Step Verification, dormant and
+  admin accounts, third-party and AI app access, Drive sharing —
+  from an export your own admin produces, and answers the same
+  insurance questionnaire wherever it honestly maps. No live
+  Google connection, no Google sign-in, no password.</p>
+  <a class="btn" href="/google">Open the Google Workspace scan</a>
 </div>
 
 <div class="card">
@@ -982,10 +1043,257 @@ def with_meta(snap, source):
     return snap
 
 
+def signin_data(snap, norm, tf):
+    """The sign-in rules evidence a snapshot can honestly support:
+    Conditional Access policy COUNT, MFA registration facts, and the
+    legacy-auth state. Policy contents are never in a snapshot, so
+    nothing here speaks to whether a policy is correctly
+    configured — the rendered proof says so in plain words."""
+    c = snap.get("securityControls") or {}
+    ts = snap.get("tenantSettings") or {}
+    members = norm["enabled_members"]
+    return {
+        "ca_policy_count": c.get("conditionalAccessPolicyCount"),
+        "legacy_auth_enabled": ts.get("legacyAuthenticationEnabled"),
+        "legacy_protocols": ts.get("legacyAuthProtocols") or [],
+        "mfa_registered": sum(1 for u in members if u["mfaRegistered"]),
+        "member_count": len(members),
+        "admins_without_mfa": [u["displayName"]
+                               for u in norm["global_admins"]
+                               if not u["mfaRegistered"]],
+        "mfa_findings": sum(1 for f in tf if f["check"] == "TF-MFA"),
+    }
+
+
+SIGNIN_LIMIT = (
+    "The contents of those policies are not in the snapshot — "
+    "which users and conditions they cover, and what they require, "
+    "cannot be seen from an export. This section is evidence of "
+    "presence and of the related settings below; it is not proof "
+    "that any policy is correctly configured, and it is never "
+    "worded that way.")
+
+
+def render_signin_report(snap, data, tf, ir):
+    out = m365.header(snap, "TenantCheck 365 - Sign-in Rules Evidence")
+    out += ["Evidence about the tenant's sign-in rules that this "
+            "snapshot can support, prepared for the owner's review "
+            "and for questions like IR-Q04 on the insurance "
+            "questionnaire.", ""]
+    ca_count = data["ca_policy_count"]
+    out += ["## Conditional Access policies",
+            (f"Policies present in the snapshot: {ca_count}."
+             if ca_count is not None else
+             "Policy count: not recorded in this snapshot."), ""]
+    out += ["## MFA evidence",
+            f"Enabled member accounts with MFA registered: "
+            f"{data['mfa_registered']} of {data['member_count']}.",
+            "Global Administrators without MFA: "
+            + (", ".join(data["admins_without_mfa"])
+               if data["admins_without_mfa"] else "none") + ".",
+            f"TenantFix MFA findings in this scan: "
+            f"{data['mfa_findings']}.", ""]
+    legacy = data["legacy_auth_enabled"]
+    out += ["## Legacy authentication",
+            ("Legacy authentication is ENABLED (protocols: "
+             + ", ".join(data["legacy_protocols"]) + ")."
+             if legacy else
+             "Legacy authentication is disabled in this snapshot.")
+            if legacy is not None else
+            "Legacy authentication state: not recorded in this "
+            "snapshot.", ""]
+    out += ["## What this evidence does not show", "", SIGNIN_LIMIT, ""]
+    return "\n".join(out)
+
+
+POLICY_TEMPLATE = """## AI acceptable-use policy — TEMPLATE
+
+**This is a template, not an adopted policy and not legal
+advice.** It becomes the firm's policy only when the owner reviews
+it, fills in the blanks, adopts it, and tells staff it is in force.
+Have it reviewed if the firm handles regulated data.
+
+Firm: [Firm name]
+Effective date: [Date]
+Policy owner: [Name / role]
+
+### 1. Purpose
+This policy covers the use of AI tools — including Microsoft
+Copilot and any third-party AI service — by everyone at the firm,
+on firm systems and firm data.
+
+### 2. Permitted uses
+- Drafting, summarising and editing the staff member's own work.
+- Brainstorming, research and first drafts that a person then
+  checks before use.
+- Use of the AI tools listed in the approved-tools section of
+  this pack, for the purposes they were approved for.
+
+### 3. Prohibited data
+Never enter the following into an AI tool that the firm has not
+approved for it:
+- Client personal information, payroll or HR records, or anything
+  covered by a client confidentiality agreement.
+- Passwords, access keys, financial credentials, or full payment
+  card numbers.
+- Anything whose disclosure would breach a law, a regulator's
+  rule, or a contract.
+
+### 4. Human review
+AI output is a draft, not a decision. A named person reviews and
+takes responsibility for anything sent to a client, filed, or
+relied on for money, tax, legal or safety decisions. AI output is
+never sent as-is to a client.
+
+### 5. New AI tools
+Staff ask the policy owner before connecting a new AI tool to
+firm accounts or data. The owner records the tool in the firm's
+inventory (the TokenWatch inventory in this pack is the starting
+point) before it is used with firm data.
+
+### 6. Incident reporting
+Anyone who believes firm or client data was entered into an
+unapproved AI tool, or that AI output caused an error, reports it
+to [Name / role] the same day. Reporting a mistake is never
+punished; hiding one is a policy breach.
+
+### 7. Review
+The policy owner reviews this policy and the AI tool inventory
+every [6 / 12] months, and whenever a new AI tool is adopted.
+"""
+
+
+def render_governance_pack(snap, tw, ca):
+    """The AI Governance Pack: TokenWatch's AI inventory, the
+    CopilotReady oversharing summary, a ready-to-adopt AI
+    acceptable-use policy template, and an evidence page tying
+    them together. Honest by construction: absent data renders as
+    an explicit statement, never as an empty pass."""
+    out = m365.header(snap, "TenantCheck 365 - AI Governance Pack")
+    out += ["This pack gives a small firm the three things an AI "
+            "governance conversation actually needs: which AI tools "
+            "already have access to its systems, what those tools "
+            "could surface, and a policy to adopt. It prepares "
+            "evidence and a template; it does not certify anything "
+            "and is not legal advice.", ""]
+    ais = m365.ai_apps(tw)
+    out += ["## 1. AI tool inventory (from TokenWatch)", "",
+            m365.AI_IDENTIFICATION_NOTE, "",
+            f"AI apps identified: {len(ais)}", ""]
+    if not ais:
+        out += ["No connected app was identified as an AI tool by "
+                "name in this scan. That is not proof the firm uses "
+                "no AI tools — only that none of the connected app "
+                "names matched the known list. Staff may also use "
+                "AI tools outside the tenant, which no tenant scan "
+                "can see.", ""]
+    for i in ais:
+        last = i["last_used_days_ago"]
+        last_txt = ("last used unknown" if last is None
+                    else f"last used {last} days ago")
+        out += [f"### {i['app']} — identified as {i['ai_label']}",
+                f"Consent: {i['consent_type']}"
+                + (f" ({i['consented_by']})" if i["consented_by"]
+                   else "")
+                + f" | {last_txt} | TokenWatch risk {i['risk']} "
+                  f"[{'FLAGGED' if i['flagged'] else 'not flagged'}]",
+                "What it can do: "
+                + "; ".join(i["scopes_plain"]) + ".", ""]
+    out += ["## 2. Copilot oversharing summary (from CopilotReady)",
+            ""]
+    if not ca["covered"]:
+        out += ["**NOT COVERED BY THIS SNAPSHOT**", "",
+                copilot_audit.NOT_COVERED_NOTE, ""]
+    else:
+        findings = ca["findings"]
+        out += [f"Sites and drives reviewed: {ca['items_reviewed']}",
+                f"Oversharing findings: {len(findings)}", ""]
+        order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
+        for f in sorted(findings,
+                        key=lambda x: order[x["severity"]]):
+            out += [f"- [{f['severity']}] {f['title']} "
+                    f"({f['check']})"]
+        if not findings:
+            out += ["No oversharing findings in the permission "
+                    "lists this snapshot contains. That is not a "
+                    "guarantee — the audit reads site and library "
+                    "permission lists, not every file."]
+        out += [""]
+    out += [POLICY_TEMPLATE]
+    out += ["## 4. Evidence page — how the pieces tie together", "",
+            "Each governance statement below is labelled with its "
+            "source. Statements the scan cannot support are marked "
+            "for the owner — they are not assumed.", "",
+            "| Statement | Source |",
+            "|---|---|",
+            f"| AI tools connected to the tenant are inventoried | "
+            f"{'Evidence in this pack (section 1): ' + str(len(ais)) + ' identified by name' if ais else 'Owner to complete — no AI tool was identified by name in this scan'} |",
+            f"| Oversharing exposure for Copilot has been reviewed | "
+            f"{'Evidence in this pack (section 2): ' + str(len(ca['findings'])) + ' finding(s)' if ca['covered'] else 'Not covered — this snapshot has no sharing inventory'} |",
+            "| A written AI acceptable-use policy exists | Owner "
+            "to state — a template is provided in section 3; it "
+            "counts as the firm's policy only once the owner "
+            "adopts it |",
+            "| Staff know which data must never enter an AI tool | "
+            "Owner to state — covered by template section 3 once "
+            "adopted and communicated |",
+            "| AI tool inventory is reviewed on a cadence | Owner "
+            "to state — template section 7 sets the cadence once "
+            "adopted |", ""]
+    return "\n".join(out)
+
+
+def compute_changes(prev, new):
+    """Scan-to-scan change report for the same firm: TenantFix
+    findings new vs resolved, InsureReady status changes,
+    CopilotReady finding changes, TokenWatch flagged-set changes,
+    and the headline summary deltas. In-product comparison only."""
+    def tf_keys(rec):
+        return {(f["check"], f["subject"]) for f in rec["tenantfix"]}
+
+    def ca_keys(rec):
+        ca = rec.get("copilot") or {}
+        if not ca.get("covered"):
+            return None
+        return {(f["check"], f["subject"]) for f in ca["findings"]}
+
+    prev_tf, new_tf = tf_keys(prev), tf_keys(new)
+    prev_ca, new_ca = ca_keys(prev), ca_keys(new)
+    prev_ir = {r["id"]: r["status"] for r in prev["insureready"]}
+    ir_changes = [
+        {"id": r["id"], "question": r["question"],
+         "from": prev_ir[r["id"]], "to": r["status"]}
+        for r in new["insureready"]
+        if r["id"] in prev_ir and prev_ir[r["id"]] != r["status"]]
+    prev_flag = {i["app"] for i in prev["tokenwatch"] if i["flagged"]}
+    new_flag = {i["app"] for i in new["tokenwatch"] if i["flagged"]}
+    ps, ns = prev["summary"], new["summary"]
+    return {
+        "baseline": False,
+        "previous_timestamp": prev["timestamp"],
+        "tenantfix_new": sorted(new_tf - prev_tf),
+        "tenantfix_resolved": sorted(prev_tf - new_tf),
+        "insureready_changes": ir_changes,
+        "copilot_comparable": prev_ca is not None and new_ca is not None,
+        "copilot_new": sorted(new_ca - prev_ca)
+        if prev_ca is not None and new_ca is not None else [],
+        "copilot_resolved": sorted(prev_ca - new_ca)
+        if prev_ca is not None and new_ca is not None else [],
+        "tokenwatch_newly_flagged": sorted(new_flag - prev_flag),
+        "tokenwatch_no_longer_flagged": sorted(prev_flag - new_flag),
+        "summary_deltas": {
+            k: (ps.get(k), ns.get(k)) for k in
+            ("tenantfix_findings", "tokenwatch_flagged",
+             "insureready_gaps", "copilot_findings")
+            if ps.get(k) != ns.get(k)},
+    }
+
+
 def run_and_store(snap, source):
     snap = with_meta(snap, source)
     norm, tf, tw, ir = m365.run_scan(snap)
     ca = copilot_audit.copilotaudit(snap)
+    signin = signin_data(snap, norm, tf)
     record = {
         "id": uuid.uuid4().hex[:12],
         "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -1007,14 +1315,21 @@ def run_and_store(snap, source):
         "tokenwatch": tw,
         "insureready": ir,
         "copilot": ca,
+        "signin": signin,
         "reports": {
             "tenantfix": m365.render_tenantfix(snap, tf),
             "tokenwatch": m365.render_tokenwatch(snap, tw),
             "insureready": m365.render_insureready(snap, ir),
             "copilot": copilot_audit.render_copilotaudit(snap, ca),
+            "signin": render_signin_report(snap, signin, tf, ir),
+            "governance": render_governance_pack(snap, tw, ca),
         },
     }
     scans = load_list(SCANS_PATH)
+    previous = next((s for s in reversed(scans)
+                     if s.get("firm") == record["firm"]), None)
+    record["changes"] = (compute_changes(previous, record)
+                         if previous is not None else {"baseline": True})
     scans.append(record)
     _save(SCANS_PATH, scans)
     return record
@@ -1082,6 +1397,55 @@ def tokenwatch_html(inventory):
 </table>"""
 
 
+def tokenwatch_ai_html(inventory):
+    """The AI-apps view on the results page: the grants whose app
+    names match the maintained AI list in m365.py. Records stored
+    before this view existed have no is_ai keys and render the
+    honest fallback line."""
+    if not inventory or "is_ai" not in inventory[0]:
+        return ""
+    ais = [i for i in inventory if i.get("is_ai")]
+    if not ais:
+        inner = ("<p>No connected app was identified as an AI tool "
+                 "by name. That is not proof the firm uses no AI "
+                 "tools — only that no connected app name matched "
+                 "the known list.</p>")
+    else:
+        rows = []
+        for i in ais:
+            flag = ('<span class="status status-gap">Flagged</span>'
+                    if i["flagged"] else
+                    '<span class="status status-supported">OK</span>')
+            last = i["last_used_days_ago"]
+            last_txt = "unknown" if last is None else f"{last} days ago"
+            by = (f" ({escape(i['consented_by'])})"
+                  if i.get("consented_by") else "")
+            rows.append(f"""
+<tr{' class="flagged"' if i['flagged'] else ''}>
+  <td><strong>{escape(i['app'])}</strong><br>
+      <span class="small">identified as
+      {escape(i.get('ai_label') or 'AI tool')}</span></td>
+  <td>{flag}</td>
+  <td>{escape('; '.join(i.get('scopes_plain') or i['scopes']))}</td>
+  <td>{last_txt}</td>
+  <td>{escape(i['consent_type'])}{by}</td>
+</tr>""")
+        inner = f"""
+<table>
+  <tr><th>AI app</th><th>Status</th><th>What it can do</th>
+      <th>Last used</th><th>Consent</th></tr>
+  {''.join(rows)}
+</table>"""
+    return f"""
+<h3>AI apps with access to this tenant</h3>
+<p>AI tools are identified as AI tools <strong>by app name</strong>
+against a maintained list of known AI services
+({len(ais)} identified). An AI tool whose name does not match the
+list would not be flagged here, and a non-AI app with an AI-sounding
+name could be listed — the owner confirms each one.</p>
+{inner}"""
+
+
 def insureready_html(rows):
     out = []
     cls = {"Supported": "status-supported", "Gap": "status-gap",
@@ -1146,6 +1510,118 @@ def copilot_html(ca):
 </div>"""
 
 
+def signin_html(record):
+    """Sign-in rules evidence section on the results page. Records
+    stored before this section existed carry no "signin" data and
+    render an honest note instead."""
+    data = record.get("signin")
+    if data is None:
+        return f"""
+<div class="card">
+  <h2>Sign-in rules evidence</h2>
+  <p>Not recorded for this stored scan — run a fresh scan to
+  produce the sign-in rules evidence section.</p>
+</div>"""
+    ca_count = data["ca_policy_count"]
+    ca_txt = (f"{ca_count} Conditional Access policies are present "
+              f"in the snapshot (count only)."
+              if ca_count is not None else
+              "The Conditional Access policy count was not recorded "
+              "in this snapshot.")
+    admins = data["admins_without_mfa"]
+    admins_txt = (", ".join(escape(a) for a in admins)
+                  if admins else "none")
+    legacy = data["legacy_auth_enabled"]
+    legacy_txt = ("still <strong>enabled</strong> ("
+                  + escape(", ".join(data["legacy_protocols"])) + ")"
+                  if legacy else "disabled")
+    if legacy is None:
+        legacy_txt = "not recorded in this snapshot"
+    return f"""
+<div class="card">
+  <h2>Sign-in rules evidence</h2>
+  <p>What this snapshot can actually prove about the tenant's
+  sign-in rules:</p>
+  <table>
+    <tr><th>Item</th><th>Evidence in this scan</th></tr>
+    <tr><td>Conditional Access policies</td><td>{ca_txt}</td></tr>
+    <tr><td>MFA registration</td>
+        <td>{data['mfa_registered']} of {data['member_count']}
+            enabled member accounts have MFA registered;
+            {data['mfa_findings']} MFA findings in the fix plan.</td></tr>
+    <tr><td>Administrators without MFA</td><td>{admins_txt}</td></tr>
+    <tr><td>Legacy authentication</td><td>{legacy_txt}.</td></tr>
+  </table>
+  <p class="small">{escape(SIGNIN_LIMIT)}</p>
+</div>"""
+
+
+def changes_html(record):
+    """The scan-to-scan change report section. Renders nothing for
+    records stored before comparisons existed."""
+    ch = record.get("changes")
+    if ch is None:
+        return ""
+    if ch.get("baseline"):
+        inner = ("<p><strong>Baseline scan</strong> — no earlier "
+                 "scan of this firm to compare with. The next scan "
+                 "of the same firm will show what changed.</p>")
+    else:
+        def key_list(pairs):
+            return "".join(
+                f"<li>{escape(c)} — {escape(s)}</li>" for c, s in pairs)
+
+        def named(items, empty):
+            return ("<ul>" + "".join(f"<li>{escape(x)}</li>"
+                                     for x in items) + "</ul>"
+                    if items else f"<p>{empty}</p>")
+
+        ir_items = "".join(
+            f"<li>{escape(c['id'])}: {escape(c['from'])} → "
+            f"{escape(c['to'])} — {escape(c['question'])}</li>"
+            for c in ch["insureready_changes"])
+        deltas = "".join(
+            f"<li>{escape(k.replace('_', ' '))}: {v[0]} → {v[1]}</li>"
+            for k, v in ch["summary_deltas"].items())
+        copilot_block = ""
+        if ch["copilot_comparable"]:
+            copilot_block = f"""
+  <p><strong>CopilotReady findings</strong> — new:</p>
+  {named([f"{c} — {s}" for c, s in ch['copilot_new']], "None.")}
+  <p>Resolved:</p>
+  {named([f"{c} — {s}" for c, s in ch['copilot_resolved']], "None.")}"""
+        else:
+            copilot_block = ("<p><strong>CopilotReady:</strong> not "
+                             "comparable — one of the two scans has "
+                             "no sharing inventory, so no change is "
+                             "claimed.</p>")
+        inner = f"""
+  <p>Compared with the previous scan of this firm
+  ({escape(ch['previous_timestamp'])}):</p>
+  <p><strong>TenantFix findings — new:</strong></p>
+  {named([f"{c} — {s}" for c, s in ch['tenantfix_new']], "None.")}
+  <p><strong>TenantFix findings — resolved:</strong></p>
+  {named([f"{c} — {s}" for c, s in ch['tenantfix_resolved']], "None.")}
+  <p><strong>InsureReady answer changes:</strong></p>
+  {('<ul>' + ir_items + '</ul>') if ir_items else '<p>None.</p>'}
+  <p><strong>App grants newly flagged:</strong>
+  {escape(', '.join(ch['tokenwatch_newly_flagged'])) if ch['tokenwatch_newly_flagged'] else 'none'} ·
+  <strong>no longer flagged:</strong>
+  {escape(', '.join(ch['tokenwatch_no_longer_flagged'])) if ch['tokenwatch_no_longer_flagged'] else 'none'}</p>
+  {copilot_block}
+  <p><strong>Headline numbers that moved:</strong></p>
+  {('<ul>' + deltas + '</ul>') if deltas else '<p>None.</p>'}"""
+    return f"""
+<div class="card">
+  <h2>What changed since the last scan</h2>
+  {inner}
+  <p class="small">This comparison lives inside the product only:
+  {PRODUCT} does not send drift alert emails and does not run
+  scheduled re-scans on its own — a change appears here when a new
+  scan of the same firm is run.</p>
+</div>"""
+
+
 def results_page(record):
     s = record["summary"]
     ca = record.get("copilot")
@@ -1192,11 +1668,15 @@ Scanned: {escape(record['timestamp'])}</p>
     <a class="btn" href="/report/{record['id']}/tenantfix">Download the TenantFix report</a>
     <a class="btn" href="/report/{record['id']}/tokenwatch">Download the TokenWatch report</a>
     <a class="btn" href="/report/{record['id']}/insureready">Download the InsureReady evidence pack</a>
+    <a class="btn" href="/report/{record['id']}/signin">Download the sign-in rules evidence</a>
+    <a class="btn" href="/report/{record['id']}/governance">Download the AI Governance Pack</a>
     {copilot_button}
   </p>
   <p class="small">All downloads are Markdown reports carrying
   the DRAFT stamp below.</p>
 </div>
+
+{changes_html(record)}
 
 <div class="card">
   <h2>TenantFix 365 — owner-approved fix plan</h2>
@@ -1204,11 +1684,14 @@ Scanned: {escape(record['timestamp'])}</p>
   {tenantfix_html(record['tenantfix'])}
 </div>
 
+{signin_html(record)}
+
 <div class="card">
   <h2>TokenWatch — OAuth grant risk inventory</h2>
   <p>Risk = scope sensitivity × dormancy × consent type, with a loading
   for unverified publishers. Ranked highest risk first.</p>
   {tokenwatch_html(record['tokenwatch'])}
+  {tokenwatch_ai_html(record['tokenwatch'])}
 </div>
 
 <div class="card">
@@ -1219,6 +1702,16 @@ Scanned: {escape(record['timestamp'])}</p>
 </div>
 
 {copilot_html(ca)}
+
+<div class="card">
+  <h2>AI Governance Pack — included in the scan</h2>
+  <p>This scan's AI Governance Pack combines the AI tool inventory
+  above, the CopilotReady oversharing summary, a ready-to-adopt AI
+  acceptable-use policy template, and an evidence page. The
+  template counts as the firm's policy only once the owner reviews
+  and adopts it — it is not legal advice.</p>
+  <p><a class="btn" href="/report/{record['id']}/governance">Download the AI Governance Pack</a></p>
+</div>
 
 <div class="card">
   <h2>Honesty note</h2>
@@ -1232,6 +1725,282 @@ Scanned: {escape(record['timestamp'])}</p>
 </div>
 """
     return page("Scan results", body)
+
+
+# ---------------------------------------------------------------------------
+# Google Workspace companion — pages, validation, scan + store, results
+# ---------------------------------------------------------------------------
+
+GOOGLE_REQUIRED_LISTS = ("users", "oauthApps", "groups")
+GOOGLE_REQUIRED_DICTS = ("domainSettings", "securityControls")
+
+GOOGLE_REPORT_FILES = {
+    "googlefix": ("googlefix_report", "Google Workspace fix plan"),
+    "tokenwatch": ("google_app_inventory",
+                   "Google Workspace app inventory"),
+    "insureready": ("insureready_evidence_pack",
+                    "InsureReady 365 evidence pack"),
+}
+
+
+def validate_google_snapshot(snap):
+    if not isinstance(snap, dict):
+        return "That file is not a snapshot object. Upload the JSON " \
+               "Google Workspace export described on the Google " \
+               "How to export page."
+    missing = [k for k in GOOGLE_REQUIRED_LISTS + GOOGLE_REQUIRED_DICTS
+               if k not in snap]
+    if missing:
+        return ("That snapshot is missing section(s): "
+                + ", ".join(missing)
+                + ". See the Google How to export page for what "
+                  "each section holds.")
+    for key in GOOGLE_REQUIRED_LISTS:
+        if not isinstance(snap[key], list):
+            return f"The '{key}' section must be a list."
+    for key in GOOGLE_REQUIRED_DICTS:
+        if not isinstance(snap[key], dict):
+            return f"The '{key}' section must be an object."
+    if not snap["users"]:
+        return "That snapshot lists no user accounts, so there is " \
+               "nothing to scan."
+    return None
+
+
+def with_google_meta(snap, source):
+    snap = dict(snap)
+    if source == "demo":
+        return snap
+    meta = dict(snap.get("_meta") or {})
+    meta["firm_name"] = meta.get("firm_name") \
+        or google_check._domain(snap) or "Uploaded Google domain"
+    meta["snapshot_date"] = meta.get("snapshot_date") \
+        or datetime.date.today().isoformat()
+    meta["label"] = ("Uploaded Google Workspace export, scanned "
+                     "exactly as provided. Findings cover only "
+                     "what the export contains.")
+    snap["_meta"] = meta
+    return snap
+
+
+def run_google_and_store(snap, source):
+    snap = with_google_meta(snap, source)
+    findings, inventory, ir, _adapter = google_check.run_google_scan(
+        snap)
+    record = {
+        "id": uuid.uuid4().hex[:12],
+        "platform": "google",
+        "timestamp": datetime.datetime.now().isoformat(
+            timespec="seconds"),
+        "source": source,
+        "firm": snap["_meta"]["firm_name"],
+        "snapshot_date": snap["_meta"]["snapshot_date"],
+        "summary": {
+            "googlefix_findings": len(findings),
+            "tokenwatch_grants": len(inventory),
+            "tokenwatch_flagged": sum(1 for i in inventory
+                                      if i["flagged"]),
+            "insureready_questions": len(ir),
+            "insureready_gaps": sum(1 for r in ir
+                                    if r["status"] != "Supported"),
+        },
+        "googlefix": findings,
+        "tokenwatch": inventory,
+        "insureready": ir,
+        "reports": {
+            "googlefix": google_check.render_googlefix(snap, findings),
+            "tokenwatch": google_check.render_google_inventory(
+                snap, inventory),
+            "insureready": m365.render_insureready(snap, ir),
+        },
+    }
+    scans = load_list(SCANS_PATH)
+    scans.append(record)
+    _save(SCANS_PATH, scans)
+    return record
+
+
+def google_landing_page(error=None):
+    err = f'<div class="notice">{escape(error)}</div>' if error else ""
+    body = f"""
+<h1>TenantCheck for Google Workspace</h1>
+<p>Not on Microsoft 365? This is the companion scan for a Google
+Workspace domain, built on the same pattern: <strong>export-based,
+no live connection, and no Google sign-in or password asked for,
+ever</strong>. Your own admin exports the domain's settings as one
+JSON file; the scan checks 2-Step Verification, dormant and admin
+accounts, third-party and AI app access, Drive sharing settings
+and external group members — and answers the same 25-question
+insurance questionnaire from the same export, wherever a question
+honestly maps to Google evidence.</p>
+{err}
+<div class="card">
+  <h2>Upload your Google Workspace export</h2>
+  <form method="post" action="/google/scan/upload" enctype="multipart/form-data">
+    <label for="snapshot">Google Workspace snapshot JSON file</label>
+    <input type="file" id="snapshot" name="snapshot" accept=".json,application/json" required>
+    <button type="submit">Run the Google scan</button>
+  </form>
+  <p class="small"><a href="/google/how-to-export">How to export</a>
+  explains the exact schema and where each part comes from (Admin
+  SDK / GAM-style export). Honest limits up front: there is no live
+  Google connection in this version, Drive item-level permission
+  lists are not in the export (domain sharing settings are), and
+  questions with no Google equivalent — Conditional Access is one —
+  answer "Evidence missing" rather than borrowing a number.</p>
+</div>
+<div class="card">
+  <h2>Or run the demo Google domain</h2>
+  <p>A fictional 9-person dental studio with planted problems: a
+  super admin with no 2-Step Verification, a forgotten AI app with
+  Drive and mail access, 14 files shared with anyone who has the
+  link.</p>
+  <form method="post" action="/google/scan/demo">
+    <button type="submit">Run the demo Google scan</button>
+  </form>
+</div>
+<p class="small">{HONESTY_LINE}</p>
+"""
+    return page("TenantCheck for Google Workspace", body)
+
+
+def google_export_page():
+    body = f"""
+<h1>How to export your Google Workspace snapshot</h1>
+<p>The Google scan runs on one JSON file: a snapshot of your
+domain's settings, produced by <strong>your own admin</strong> with
+Google's own tools. Nothing connects to your domain from this
+site, there is no Google sign-in here, and no Google credential is
+ever collected — a live connection does not exist in this version
+and is not promised here.</p>
+
+<div class="card">
+  <h2>The collector outline</h2>
+  <p>An admin produces the file with the Google Admin SDK
+  (Directory, Reports and Drive APIs) or a GAM-style command-line
+  run — read-only reporting commands, run on the admin's own
+  machine, signed in as the admin. In outline:</p>
+  <ol>
+    <li><strong>Users:</strong> list users with their suspended
+    state, super-admin flag, 2-Step Verification enrolment
+    (Reports / Directory user security fields) and last login
+    time.</li>
+    <li><strong>Domain settings:</strong> less secure app access,
+    Drive external sharing level, the domain count of files shared
+    with anyone with the link, and the password policy.</li>
+    <li><strong>Third-party apps:</strong> the domain's OAuth /
+    third-party app access list (app name, scopes, trusted state,
+    users with access) from the Admin console's API controls /
+    token audit report.</li>
+    <li><strong>Groups:</strong> groups with whether external
+    members are allowed and how many there are.</li>
+    <li><strong>Mail forwarding:</strong> per-user forwarding
+    settings the export records (settings only, never message
+    contents).</li>
+    <li><strong>Owner-stated facts:</strong> the same
+    <code>securityControls</code> section as the Microsoft export —
+    backup state, EDR and encryption coverage, training, written
+    plans, penetration-test recency. Google cannot supply these;
+    the admin states them, and anything unstated is reported as
+    evidence missing. One deliberate omission:
+    <code>conditionalAccessPolicyCount</code> is NOT part of the
+    Google schema — Google has no Conditional Access, so that
+    insurance question answers "Evidence missing" honestly.</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h2>The schema, section by section</h2>
+  <table>
+    <tr><th>Section</th><th>What it holds</th></tr>
+    <tr><td><code>users</code></td><td>primaryEmail, displayName,
+    suspended, isAdmin, twoStepEnrolled (true/false/null),
+    lastLoginDaysAgo</td></tr>
+    <tr><td><code>domainSettings</code></td><td>lessSecureAppAccess,
+    driveExternalSharing (allowed / allowedWithWarning / blocked),
+    anyoneWithLinkFileCount, passwordPolicy</td></tr>
+    <tr><td><code>oauthApps</code></td><td>appName, scopes,
+    trusted, lastUsedDaysAgo, usersWithAccess</td></tr>
+    <tr><td><code>groups</code></td><td>email, name, memberCount,
+    externalMembers, allowsExternalMembers</td></tr>
+    <tr><td><code>mailForwarding</code></td><td>userEmail,
+    forwardTo[]</td></tr>
+    <tr><td><code>securityControls</code></td><td>The owner-stated
+    facts listed above</td></tr>
+  </table>
+  <p>The demo domain on this page is a complete worked example of
+  the exact shape.</p>
+</div>
+<p class="small">{HONESTY_LINE}</p>
+"""
+    return page("How to export your Google Workspace snapshot", body)
+
+
+def google_results_page(record):
+    s = record["summary"]
+    body = f"""
+<h1>Google Workspace scan results</h1>
+<p>Domain: <strong>{escape(record['firm'])}</strong><br>
+Snapshot date: {escape(record['snapshot_date'])} ·
+Scanned: {escape(record['timestamp'])}</p>
+
+<div class="card">
+  <h2>The headline numbers</h2>
+  <table>
+    <tr><th>Module</th><th>Result</th></tr>
+    <tr><td>GoogleFix</td>
+        <td><strong>{s['googlefix_findings']} findings</strong>
+            in the fix plan</td></tr>
+    <tr><td>App inventory</td>
+        <td><strong>{s['tokenwatch_flagged']} of {s['tokenwatch_grants']} third-party apps flagged</strong> by risk</td></tr>
+    <tr><td>InsureReady 365</td>
+        <td><strong>{s['insureready_gaps']} of {s['insureready_questions']} insurance questions</strong> are gaps or missing evidence</td></tr>
+  </table>
+  <p>
+    <a class="btn" href="/google/report/{record['id']}/googlefix">Download the fix plan</a>
+    <a class="btn" href="/google/report/{record['id']}/tokenwatch">Download the app inventory</a>
+    <a class="btn" href="/google/report/{record['id']}/insureready">Download the InsureReady questionnaire pack</a>
+  </p>
+  <p class="small">All downloads are Markdown reports carrying
+  the DRAFT stamp below.</p>
+</div>
+
+<div class="card">
+  <h2>GoogleFix — owner-approved fix plan</h2>
+  <p>{escape(m365.FIX_PLAN_NOTE)}</p>
+  {tenantfix_html(record['googlefix'])}
+</div>
+
+<div class="card">
+  <h2>Third-party app inventory</h2>
+  <p>Apps with access to the domain, ranked by scope sensitivity
+  and dormancy, with a loading for untrusted apps.</p>
+  {tokenwatch_html(record['tokenwatch'])}
+  {tokenwatch_ai_html(record['tokenwatch'])}
+</div>
+
+<div class="card">
+  <h2>InsureReady 365 — insurance evidence</h2>
+  <p>The same 25-question questionnaire as the Microsoft scan,
+  answered from this export wherever a question honestly maps.
+  Questions with no Google evidence source answer
+  <em>Evidence missing</em> — including Conditional Access
+  (IR-Q04), which has no Google equivalent.</p>
+  {insureready_html(record['insureready'])}
+</div>
+
+<div class="card">
+  <h2>Honesty note</h2>
+  <p>Every item above is an issue to review, found by deterministic
+  checks against the export provided. This scan is export-based:
+  it has no live connection to Google, sees domain sharing
+  settings rather than file-level permission lists, and reports
+  anything the export does not contain as evidence missing, never
+  assumed.</p>
+  <p class="small">{escape(m365.STAMP)}</p>
+</div>
+"""
+    return page("Google Workspace scan results", body)
 
 
 # ---------------------------------------------------------------------------
@@ -1280,6 +2049,8 @@ REPORT_FILES = {
     "insureready": ("insureready_evidence_pack",
                     "InsureReady 365 evidence pack"),
     "copilot": ("copilot_report", "CopilotReady oversharing audit"),
+    "signin": ("signin_rules_evidence", "Sign-in rules evidence"),
+    "governance": ("ai_governance_pack", "AI Governance Pack"),
 }
 
 
@@ -1361,17 +2132,49 @@ class Handler(BaseHTTPRequestHandler):
             flat = {k: v[0] for k, v in query.items()}
             self._send(200, connect_callback_page(
                 graph_connect.handle_callback(flat)))
+        elif path == "/google":
+            self._send(200, google_landing_page())
+        elif path == "/google/how-to-export":
+            self._send(200, google_export_page())
+        elif path.startswith("/google/results/"):
+            record = load_scan(path[len("/google/results/"):])
+            if record is None \
+                    or record.get("platform") != "google":
+                self._not_found()
+            else:
+                self._send(200, google_results_page(record))
+        elif path.startswith("/google/report/"):
+            bits = path[len("/google/report/"):].split("/")
+            record = load_scan(bits[0]) if bits else None
+            module = bits[1] if len(bits) > 1 else ""
+            if record is None \
+                    or record.get("platform") != "google" \
+                    or module not in GOOGLE_REPORT_FILES \
+                    or module not in record.get("reports", {}):
+                self._not_found()
+            else:
+                stem, _label = GOOGLE_REPORT_FILES[module]
+                self._send(
+                    200, record["reports"][module],
+                    content_type="text/markdown; charset=utf-8",
+                    extra_headers={
+                        "Content-Disposition":
+                            f'attachment; filename="tenantcheck365_'
+                            f'{stem}_{record["id"]}.md"'})
         elif path.startswith("/results/"):
             record = load_scan(path[len("/results/"):])
             if record is None:
                 self._not_found()
+            elif record.get("platform") == "google":
+                self._redirect(f"/google/results/{record['id']}")
             else:
                 self._send(200, results_page(record))
         elif path.startswith("/report/"):
             bits = path[len("/report/"):].split("/")
             record = load_scan(bits[0]) if bits else None
             module = bits[1] if len(bits) > 1 else ""
-            if record is None or module not in REPORT_FILES:
+            if record is None or module not in REPORT_FILES \
+                    or module not in record.get("reports", {}):
                 self._not_found()
             else:
                 stem, _label = REPORT_FILES[module]
@@ -1389,6 +2192,15 @@ class Handler(BaseHTTPRequestHandler):
         path = urllib.parse.urlparse(self.path).path
         if path == "/scan/upload":
             self._handle_upload()
+            return
+        if path == "/google/scan/upload":
+            self._handle_google_upload()
+            return
+        if path == "/google/scan/demo":
+            with open(DEMO_GOOGLE_PATH, encoding="utf-8") as fh:
+                gsnap = json.load(fh)
+            grecord = run_google_and_store(gsnap, "demo")
+            self._send(200, google_results_page(grecord))
             return
         form = self._form()
         if path == "/connect/scan":
@@ -1484,6 +2296,41 @@ class Handler(BaseHTTPRequestHandler):
                 f"each section must carry."))
             return
         self._send(200, results_page(record))
+
+    def _handle_google_upload(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > MAX_UPLOAD:
+            self._send(413, google_landing_page(
+                "That file is too large for a domain snapshot "
+                "(6 MB limit)."))
+            return
+        raw = self.rfile.read(length) if length else b""
+        fields = parse_multipart(raw, self.headers.get("Content-Type"))
+        content = fields.get("snapshot")
+        if not content:
+            self._send(400, google_landing_page(
+                "Choose a Google Workspace snapshot JSON file first."))
+            return
+        try:
+            snap = json.loads(content.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send(400, google_landing_page(
+                "That file is not valid JSON. Upload the Google "
+                "Workspace export exactly as produced — see the "
+                "Google How to export page."))
+            return
+        problem = validate_google_snapshot(snap)
+        if problem:
+            self._send(400, google_landing_page(problem))
+            return
+        try:
+            record = run_google_and_store(snap, "upload")
+        except (KeyError, TypeError, AttributeError, ValueError) as exc:
+            self._send(400, google_landing_page(
+                f"That snapshot is missing fields the scan needs "
+                f"({exc}). See the Google How to export page."))
+            return
+        self._send(200, google_results_page(record))
 
 
 def main():
