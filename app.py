@@ -6,8 +6,10 @@ One brand over the three verified M365-cluster modules:
 
   * TenantFix 365   — Microsoft 365 hardening scan for small firms with
                       no IT person, plus an owner-approved fix plan.
-  * TokenWatch      — OAuth grant inventory ranked by scope x dormancy
-                      x consent, with unverified-publisher loading.
+  * TokenWatch      — OAuth grant inventory ranked by scope sensitivity
+                      and consent type, with an unverified-publisher
+                      loading. Time unused changes the rank only when
+                      the snapshot includes a real last-use date.
   * InsureReady 365 — the same scan mapped to a cyber-insurance
                       evidence pack (Supported / Gap / Evidence missing).
   * CopilotReady    — the Copilot oversharing audit (copilot_audit.py):
@@ -193,6 +195,14 @@ th { background: #f1f3f5; }
 footer.site { max-width: 880px; margin: 0 auto; padding: 0 20px 40px;
               color: #5a6572; font-size: .9rem; }
 .small { color: #5a6572; font-size: .9rem; }
+.skip { position: absolute; left: -9999px; top: 0; background: #fff;
+        color: #14304d; padding: 10px 16px; z-index: 10;
+        font-weight: 700; }
+.skip:focus { left: 8px; top: 8px; }
+@media (max-width: 760px) {
+  header.site nav { float: none; margin-top: 8px; }
+  header.site nav a { display: inline-block; margin: 2px 14px 2px 0; }
+}
 """
 
 
@@ -306,6 +316,34 @@ def robots_txt():
             f"Sitemap: {BASE_URL}/sitemap.xml\n")
 
 
+def security_txt():
+    return ("Contact: mailto:jeremygordon6@gmail.com\n"
+            "Preferred-Languages: en, fr\n"
+            f"Canonical: {BASE_URL}/.well-known/security.txt\n"
+            "\n"
+            "TenantCheck 365 is operated by CanCheck (Jeremy "
+            "Gordon). Please report\nsecurity issues with this "
+            "site to the contact above.\n")
+
+
+# Baseline security headers sent on every response. The CSP is a
+# baseline, not a strict policy: the pages are server-rendered with
+# an inline <style> block and inline JSON-LD <script> blocks, so
+# 'unsafe-inline' is required for style-src and script-src or the
+# site breaks; everything else is locked to 'self', framing is
+# denied (also via X-Frame-Options), and form posts go to 'self'.
+SECURITY_HEADERS = {
+    "Strict-Transport-Security": "max-age=31536000",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "same-origin",
+    "Content-Security-Policy":
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+        "base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+}
+
+
 def _json_ld(data):
     return ('<script type="application/ld+json">'
             + json.dumps(data, ensure_ascii=False) + "</script>")
@@ -349,10 +387,12 @@ def home_json_ld():
          "Where the tenant data cannot support an answer, the pack "
          "says so instead of guessing."),
         ("How much does TenantCheck 365 cost?",
-         "Founding prices shown on this page: $149 one time for the "
-         "scan and fix plan, $39/month for monitoring with re-scan "
-         "alerts, and $49/month for the full bundle of all three "
-         "modules."),
+         "Founding prices shown on this page, in CAD: $149 CAD one "
+         "time for the scan and fix plan, $39 CAD/month for "
+         "monitoring (a re-scan plan: you send a fresh export, we "
+         "re-run the scan and compare it with your last scan — no "
+         "automatic scheduler yet), and $49 CAD/month for the full "
+         "bundle of all three modules."),
     ]
     faq = {
         "@context": "https://schema.org",
@@ -408,16 +448,17 @@ def page(title, body, extra_head=""):
 <style>{CSS}</style>
 </head>
 <body>
+<a class="skip" href="#main">Skip to main content</a>
 <header class="site">
   <a href="/">{PRODUCT}</a>
-  <nav>
+  <nav aria-label="Primary">
     <a href="/scan">Run a scan</a>
     <a href="/how-to-export">How to export</a>
     <a href="/live-connection">Live connection</a>
     <a href="/connect">Connect</a>
   </nav>
 </header>
-<main>
+<main id="main">
 {body}
 </main>
 <footer class="site">
@@ -443,7 +484,8 @@ def error_page(title, message):
 
 def landing_page(joined=False):
     thanks = ('<div class="notice">Thanks — you are on the founding list. '
-              'We will write when the founding cohort opens.</div>') \
+              'Checkout is open now at the founding prices above.'
+              '</div>') \
         if joined else ""
     body = f"""
 <h1>Your Microsoft 365, checked before an attacker — or an insurer —
@@ -456,11 +498,11 @@ fix plan you approve step by step, a ranked list of risky app grants,
 and an evidence pack your cyber-insurance renewal can actually use.</p>
 
 <div class="deadline">
-  <strong>Why now:</strong> insurers have stopped accepting "yes, we
-  have MFA" as an answer — renewals now ask for configuration
-  <em>evidence</em>, and answers given on the form are treated as fact
-  if there is ever a claim. Knowing your real state before renewal is
-  the difference between evidence and a guess.
+  <strong>Why now:</strong> many cyber-insurance renewal
+  questionnaires now ask for configuration <em>evidence</em>, not
+  just a "yes" to MFA — and answers given on the form are treated
+  as fact if there is ever a claim. Knowing your real state before
+  renewal is the difference between evidence and a guess.
 </div>
 
 <h2>How it works</h2>
@@ -487,11 +529,11 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   Administrators, dormant admin accounts, broad guest access, and weak
   password policy. Every finding comes with the reason it matters and
   the exact fix steps, as an owner-approved fix plan.</p>
-  <p><strong>Founding price: $149</strong> one time for the scan and
-  fix plan · <strong>$39/month</strong> monitoring with re-scan alerts.</p>
+  <p><strong>Founding price: $149 CAD</strong> one time for the scan and
+  fix plan · <strong>$39 CAD/month</strong> monitoring — a re-scan plan: you send a fresh export, we re-run the scan and compare it with your last scan. No automatic scheduler yet.</p>
   <a class="btn" href="/scan">Run a scan</a>
-  <a class="btn" href="https://buy.stripe.com/00w9AMaJj76fbCu6AQ5Rm03">Buy the scan — $149</a>
-  <a class="btn" href="https://buy.stripe.com/9B66oAg3DgGP0XQ7EU5Rm04">Add monitoring — $39/month</a>
+  <a class="btn" href="https://buy.stripe.com/00w9AMaJj76fbCu6AQ5Rm03">Buy the scan — $149 CAD</a>
+  <a class="btn" href="https://buy.stripe.com/9B66oAg3DgGP0XQ7EU5Rm04">Add monitoring — $39 CAD/month</a>
 </div>
 
 <div class="card">
@@ -499,9 +541,14 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   <p>Every third-party app your people have connected to Microsoft 365
   keeps the access it was granted — often mail and file access — long
   after everyone forgot it. TokenWatch inventories every OAuth grant
-  and ranks it by what it can reach, how long it has sat unused, and
-  whether one user approved it alone, with extra weight on unverified
-  publishers. These grants bypass MFA entirely. The inventory also
+  and ranks it by what it can reach, whether one user approved it
+  alone, and whether the publisher is verified. Time unused changes
+  that rank only when the snapshot includes a real last-use date.
+  The export script does not have one: Microsoft's permission-grant
+  records do not include last use, so an export is ranked without a
+  dormancy guess and last use shows as unknown. A live connection
+  can fill last use from the app's sign-in logs when Microsoft
+  returns them. These grants bypass MFA entirely. The inventory also
   carries an AI apps view: connected apps identified by name as AI
   tools (meeting note-takers, AI writing and chat apps and the
   like), with what each one can read, in plain English.</p>
@@ -547,13 +594,15 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   <h2>The bundle <span class="badge">All three modules</span></h2>
   <p>TenantFix + TokenWatch + InsureReady on one tenant scan engine,
   with the CopilotReady oversharing audit included in every scan,
-  and scheduled re-scans so the state you attested to stays true
-  between renewals.</p>
-  <p><strong>Founding price: $49/month</strong> for the full bundle.</p>
-  <a class="btn" href="https://buy.stripe.com/9B600cdVv1LV9umgbq5Rm05">Subscribe — $49/month</a>
+  and re-scans on request — you send a fresh export, we re-run
+  the scan and compare it with your last one — so the state you
+  attested to is checked again between renewals.</p>
+  <p><strong>Founding price: $49 CAD/month</strong> for the full bundle.</p>
+  <a class="btn" href="https://buy.stripe.com/9B600cdVv1LV9umgbq5Rm05">Subscribe — $49 CAD/month</a>
   <p class="small">Founding prices are the introductory prices for the
-  first cohort, and checkout is open now. Join the list below and
-  founding pricing is locked for you.</p>
+  first cohort, and checkout is open now at those prices. The list
+  below records your details so we can write to you about the founding
+  offer.</p>
 </div>
 
 <div class="card">
@@ -575,7 +624,10 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   <p>The demo runs the full scan on a fictional 18-person bookkeeping
   firm with real problems planted in it — no MFA on three accounts
   including an admin, an inbox rule forwarding invoices to an outside
-  address, and a forgotten app with mail access unused for 210 days.
+  address, and a forgotten app with mail access. The demo snapshot
+  includes a last-use date for that app (210 days) so the ranking
+  can show the time-unused factor. An export from the script does
+  not include that date, and last use stays unknown.
   Same engine, same reports, zero risk.</p>
   <form method="post" action="/scan/demo">
     <button type="submit">Run the demo scan</button>
@@ -584,9 +636,10 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
 
 <div class="card">
   <h2>Join the founding list</h2>
-  <p>Leave your details and we will write when the founding cohort
-  opens. No email is sent by this form — it only records your details
-  for the launch note.</p>
+  <p>Checkout is open now at the founding prices above. Leave your
+  details and we will write to you about the founding offer. No email
+  is sent by this form — it only records your details so we can send
+  that note.</p>
   {thanks}
   <form method="post" action="/founding">
     <label for="name">Your name</label>
@@ -600,6 +653,11 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
            placeholder="Your Business Inc.">
     <button type="submit">Join the founding list</button>
   </form>
+  <p class="small">CanCheck is operated by Jeremy Gordon. By
+  joining the founding list, you agree to receive email from
+  CanCheck about the founding offer. You can unsubscribe at any
+  time — reply to any email and ask to be removed, and we will
+  remove you.</p>
 </div>
 
 <p class="small">{HONESTY_LINE} Every finding is an issue to review,
@@ -680,11 +738,18 @@ step.</p>
   If the module is missing, the script stops and prints the one
   install command — nothing to install from us.</p>
   <p><strong>2. Run it.</strong> Save the download, open PowerShell in
-  that folder, and run:
-  <code>powershell -ExecutionPolicy Bypass -File
-  .\tenantcheck-export.ps1</code>. The Bypass flag applies to this
-  one run only; the script itself is plain text and you can read
-  every line before running it.</p>
+  that folder, and run:</p>
+  <pre class="sample">Unblock-File -LiteralPath .\tenantcheck-export.ps1
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+.\tenantcheck-export.ps1</pre>
+  <p class="small">Windows marks a downloaded script as coming from
+  the internet and may refuse to run it. <code>Unblock-File</code>
+  clears that mark on this file only.
+  <code>Set-ExecutionPolicy -Scope Process</code> allows local scripts
+  in this window only (<code>RemoteSigned</code>). That is enough to
+  run this script, and the change ends when you close the window. It
+  does not turn script checks off for anything else. The script itself
+  is plain text and you can read every line before running it.</p>
   <p><strong>3. Sign in — to Microsoft, not to us.</strong> A
   Microsoft sign-in window opens. You sign in with your own admin
   account and approve a fixed list of <strong>read-only</strong>
@@ -708,14 +773,19 @@ step.</p>
   the <a href="/scan">scan page</a> and review your three reports.
   Fixes are listed as steps in an owner-approved plan; this tool
   applies nothing.</p>
-  <p class="small">Three honest limits of the script: Microsoft does not
-  expose when each third-party app grant was last used, so grants are
-  scored without a dormancy guess; it cannot see how broadly a
-  guest account can reach, so guests are never flagged on a guess;
-  and the Copilot oversharing audit reads site-level and
+  <p class="small">Honest limits of the script: permission-grant
+  records do not include when an app was last used, and this script
+  does not read app sign-in logs, so every grant is written with last
+  use unknown and scored without a dormancy guess. It cannot see
+  how broadly a guest account can reach, so guests are never flagged
+  on a guess. The Copilot oversharing audit reads site-level and
   library-root permission lists, not every file — sharing links on
-  individual files below that level are not enumerated. All three
-  facts are stated in the script itself.</p>
+  individual files below that level are not enumerated. And if the
+  script cannot read a mailbox's inbox rules, it counts that mailbox
+  as skipped and writes the count into the export: the scan then
+  reports the forwarding answer as evidence missing for those
+  mailboxes, never as "no rules found". All of these facts are
+  stated in the script itself.</p>
 </div>
 
 <div class="card">
@@ -735,9 +805,14 @@ step.</p>
             role assignments</td></tr>
     <tr><td><code>inboxRules</code></td>
         <td>Per-mailbox inbox rules, including any forwarding or
-            redirect targets (rule settings, not message contents)</td>
-        <td>Exchange — Graph inbox message rules per mailbox, or the
-            Exchange admin rule reports</td></tr>
+            redirect targets (rule settings, not message contents).
+            The export also carries an <code>exportCoverage</code>
+            count of mailboxes read and mailboxes skipped</td>
+        <td>Exchange — Graph inbox message rules per mailbox (read
+            with the MailboxSettings.Read permission — rule settings
+            only), or the Exchange admin rule reports. A mailbox the
+            export could not read is counted as skipped, and the
+            scan reports its forwarding evidence as missing</td></tr>
     <tr><td><code>tenantSettings</code></td>
         <td>Legacy authentication state, external sharing level,
             password policy</td>
@@ -745,9 +820,12 @@ step.</p>
             admin sharing settings, domain password policy</td></tr>
     <tr><td><code>oauthGrants</code></td>
         <td>Third-party app consents: app name, scopes granted, who
-            consented, publisher verification, last use</td>
+            consented, and publisher verification. Last use is not
+            included — Microsoft's grant records do not include it,
+            so the export writes last use as unknown</td>
         <td>Enterprise applications — Graph OAuth2 permission grants
-            and service principals</td></tr>
+            and service principals. The script does not read app
+            sign-in logs</td></tr>
     <tr><td><code>sharingInventory</code></td>
         <td>Per-site and per-drive sharing digest: owners, anonymous
             and company-wide link permissions, grants to "Everyone"
@@ -799,38 +877,29 @@ def live_connection_page():
   works</a>) remains available.
 </div>
 <p>Uploading an export works, but it is a snapshot of one day. The
-monitoring offer — re-scans that catch a new risky app grant or an MFA
-change between insurance renewals — needs a standing, read-only
-connection. This is exactly what the connection requires:</p>"""
+monitoring offer, as it works today, is re-scans on request:
+you send a fresh export, we re-run the scan and send you the
+comparison against your last scan. Scheduled re-scans that catch
+a new risky app grant or an MFA change between insurance
+renewals need a standing, read-only connection. This is exactly what the connection requires:</p>"""
     else:
-        remaining = "".join(
-            f"<li><code>{escape(name)}</code></li>"
-            for name in cfg["missing_config"])
         status = f"""
 <div class="deadline">
   <strong>Status, plainly:</strong> setup is pending. The live
-  connection code is built, but it is <strong>not switched on</strong>
-  in this version because the app registration is not configured on
-  this server yet. {PRODUCT} runs today on an uploaded export
-  (<a href="/how-to-export">how that works</a>) — nothing on this site
-  connects to your tenant, and nothing here can.
-  <p>What remains, on the product owner's side:</p>
-  <ol>
-    <li>Register the app in Microsoft Entra ID (an Azure app
-    registration) with the redirect URI
-    <code>https://tenantcheck365.ca/connect/callback</code>.</li>
-    <li>Create a client secret on that registration.</li>
-    <li>Add these environment variables on the host (Render) and
-    restart the service:
-    <ul>{remaining}</ul></li>
-  </ol>
-  <p>Until then, the <a href="/connect">connect page</a> stays off and
-  says the same thing this page does.</p>
+  connection is <strong>not switched on</strong> yet, so nothing on
+  this site connects to your tenant. {PRODUCT} runs today on an
+  uploaded export (<a href="/how-to-export">how that works</a>).
+  What remains is setup on the product owner's side: the app
+  registration has to be created and configured on the server.
+  The <a href="/connect">connect page</a> stays off until setup is
+  finished, and it says the same thing this page does.
 </div>
 <p>Uploading an export works, but it is a snapshot of one day. The
-monitoring offer — re-scans that catch a new risky app grant or an MFA
-change between insurance renewals — needs a standing, read-only
-connection. This is exactly what that connection will require, so you
+monitoring offer, as it works today, is re-scans on request:
+you send a fresh export, we re-run the scan and send you the
+comparison against your last scan. Scheduled re-scans that catch
+a new risky app grant or an MFA change between insurance
+renewals need a standing, read-only connection. This is exactly what that connection will require, so you
 can judge it before it exists:</p>"""
     body = f"""
 <h1>The live connection — how it works</h1>
@@ -853,10 +922,14 @@ can judge it before it exists:</p>"""
   your admin, deliberately. Until that moment, we can see nothing.</p>
 </div>
 <div class="card">
-  <h2>Step 3 — the same scan, automatically</h2>
+  <h2>Step 3 — the same scan, without the export</h2>
   <p>With consent in place, the app builds the same snapshot the export
   produces today and runs the identical checks — same engine, same
-  reports. Monitoring re-runs it on schedule and alerts on change.</p>
+  reports. Scheduled monitoring — the scan re-running itself on a
+  schedule and flagging changes — is what this connection makes
+  possible; it does not run today. Until then, monitoring is
+  re-scans on request: you ask, we re-run the scan and send you
+  the comparison against your last scan.</p>
 </div>
 <div class="card">
   <h2>Step 4 — you can revoke it any time</h2>
@@ -868,8 +941,13 @@ can judge it before it exists:</p>"""
 <div class="notice">
   <strong>Standing rules, live or not:</strong> we never collect or
   store Microsoft passwords — there is no password field anywhere in
-  this product. Fixes are never applied without the owner's approval
-  of each step; a read-only connection cannot apply them anyway.
+  this product. The permissions are read-only: directory and role
+  reads, policy reads, app-consent reads, and inbox rule settings.
+  No mail contents, and nothing that can change the tenant. A live
+  scan stores the same kind of snapshot as an upload, only as your
+  scan record, so the reports stay downloadable. Fixes are never
+  applied without the owner's approval of each step; a read-only
+  connection cannot apply them anyway.
 </div>
 <p class="small">{HONESTY_LINE}</p>
 """
@@ -885,21 +963,19 @@ def connect_page(message=None):
     notice = (f'<div class="notice">{escape(message)}</div>'
               if message else "")
     if not cfg["consent_ready"]:
-        remaining = "".join(
-            f"<li><code>{escape(name)}</code></li>"
-            for name in cfg["missing_config"])
         body = f"""
 <h1>Connect your tenant</h1>
 {notice}
 <div class="deadline">
   <strong>Setup is pending.</strong> The live connection is switched
-  off until the product owner finishes the app registration on this
-  server, so this page cannot start a consent and nothing has been
-  sent to Microsoft. What remains:
-  <ul>{remaining}</ul>
-  See <a href="/live-connection">how the live connection works</a>
-  for the full picture. In the meantime the
-  <a href="/scan">export-based scan</a> works exactly as before.
+  off until setup is finished, so this page cannot start a consent
+  and nothing has been sent to Microsoft. When it is on, it is
+  read-only: your own Global Administrator grants or refuses tenant
+  admin consent on Microsoft's screen. We never ask for your
+  Microsoft password. See
+  <a href="/live-connection">how the live connection works</a>
+  for the permissions and how the data is handled. In the meantime
+  the <a href="/scan">export-based scan</a> works exactly as before.
 </div>
 <p class="small">{HONESTY_LINE}</p>
 """
@@ -934,9 +1010,10 @@ def connect_page(message=None):
                           "after its own admin grants consent.</p>")
     if not cfg["scan_ready"]:
         connected_html += ('<div class="notice">Consent can be '
-                           'recorded now, but live scans also need '
-                           '<code>TENANTCHECK_MS_CLIENT_SECRET</code> '
-                           'to be configured on this server.</div>')
+                           'recorded now. A live scan stays off until '
+                           'setup is finished, so nothing is read from '
+                           'the tenant yet. When a scan is on, it is '
+                           'read-only.</div>')
     body = f"""
 <h1>Connect your tenant</h1>
 {notice}
@@ -1715,8 +1792,13 @@ Scanned: {escape(record['timestamp'])}</p>
 
 <div class="card">
   <h2>TokenWatch — OAuth grant risk inventory</h2>
-  <p>Risk = scope sensitivity × dormancy × consent type, with a loading
-  for unverified publishers. Ranked highest risk first.</p>
+  <p>Ranked by scope sensitivity, whether one user approved the grant
+  alone, and whether the publisher is verified. Time unused raises
+  the score only when Last used is a number of days. Unknown means
+  the snapshot has no last-use date — that is every grant from the
+  export script, because Microsoft's grant records do not include
+  it — and an unknown date does not change the rank. Highest risk
+  first.</p>
   {tokenwatch_html(record['tokenwatch'])}
   {tokenwatch_ai_html(record['tokenwatch'])}
 </div>
@@ -1871,7 +1953,7 @@ def google_landing_page(error=None):
   is built for this scan — a service account your own super admin
   authorizes in your Admin console (domain-wide delegation,
   read-only scopes) — but it is not switched on until the product
-  owner finishes the setup described in SETUP-GOOGLE.md. See
+  owner finishes the setup on the product owner's side. See
   <a href="/google/live-connection">how the live connection will
   work</a> and what its status is. Until then, the export scan
   below is how Google domains are scanned.</p>
@@ -2061,8 +2143,10 @@ Scanned: {escape(record['timestamp'])}</p>
 
 <div class="card">
   <h2>Third-party app inventory</h2>
-  <p>Apps with access to the domain, ranked by scope sensitivity
-  and dormancy, with a loading for untrusted apps.</p>
+  <p>Apps with access to the domain, ranked by scope sensitivity,
+  with a loading for untrusted apps. Time unused raises the score
+  only when the snapshot carries a real last-use date; exports
+  usually carry none, so those apps show last used as unknown.</p>
   {tokenwatch_html(record['tokenwatch'])}
   {tokenwatch_ai_html(record['tokenwatch'])}
 </div>
@@ -2111,30 +2195,18 @@ standing, read-only connection is what lets the same scan run
 against the domain as it is now. This is exactly what the
 connection requires:</p>"""
     else:
-        remaining = "".join(
-            f"<li><code>{escape(name)}</code></li>"
-            for name in cfg["missing_config"])
         status = f"""
 <div class="deadline">
   <strong>Status, plainly:</strong> setup is pending. The live
-  connection code is built, but it is <strong>not switched on</strong>
-  in this version because the service account is not configured on
-  this server yet. {PRODUCT} runs Google scans today on an uploaded
-  export (<a href="/google/how-to-export">how that works</a>) —
-  nothing on this site connects to your domain, and nothing here
-  can.
-  <p>What remains, on the product owner's side (SETUP-GOOGLE.md
-  has the full walkthrough):</p>
-  <ol>
-    <li>Create a Google Cloud project, enable the Admin SDK API,
-    and create a service account.</li>
-    <li>Create a key for that service account.</li>
-    <li>Add these environment variables on the host (Render) and
-    restart the service:
-    <ul>{remaining}</ul></li>
-  </ol>
-  <p>Until then, the <a href="/google/connect">Google connect
-  page</a> stays off and says the same thing this page does.</p>
+  connection is <strong>not switched on</strong> yet, so nothing on
+  this site connects to your domain. {PRODUCT} runs Google scans
+  today on an uploaded export
+  (<a href="/google/how-to-export">how that works</a>). What
+  remains is setup on the product owner's side: the service
+  account has to be created and configured on the server. The
+  <a href="/google/connect">Google connect page</a> stays off
+  until setup is finished, and it says the same thing this page
+  does.
 </div>
 <p>Uploading an export works, but it is a snapshot of one day. A
 standing, read-only connection is what lets the same scan run
@@ -2198,20 +2270,19 @@ def google_connect_page(message=None):
     notice = (f'<div class="notice">{escape(message)}</div>'
               if message else "")
     if not cfg["configured"]:
-        remaining = "".join(
-            f"<li><code>{escape(name)}</code></li>"
-            for name in cfg["missing_config"])
         body = f"""
 <h1>Connect your Google Workspace domain</h1>
 {notice}
 <div class="deadline">
   <strong>Setup is pending.</strong> The live connection is switched
-  off until the product owner finishes the service account setup
-  on this server, so this page cannot register a domain and
-  nothing has been sent to Google. What remains:
-  <ul>{remaining}</ul>
-  See <a href="/google/live-connection">how the Google live
-  connection works</a> for the full picture. In the meantime the
+  off until setup is finished, so this page cannot register a
+  domain and nothing has been sent to Google. When setup is done,
+  your own super admin authorizes the delegation in your Admin
+  console, on Google's screen. Nothing on this page asks for a
+  Google password. See
+  <a href="/google/live-connection">how the Google live
+  connection works</a> for the scope list and the standing rules.
+  In the meantime the
   <a href="/google">export-based Google scan</a> works exactly as
   before.
 </div>
@@ -2358,15 +2429,20 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
+        for k, v in SECURITY_HEADERS.items():
+            self.send_header(k, v)
         for k, v in (extra_headers or {}).items():
             self.send_header(k, v)
         self.end_headers()
-        self.wfile.write(payload)
+        if not getattr(self, "_head_only", False):
+            self.wfile.write(payload)
 
     def _redirect(self, location):
         self.send_response(303)
         self.send_header("Location", location)
         self.send_header("Content-Length", "0")
+        for k, v in SECURITY_HEADERS.items():
+            self.send_header(k, v)
         self.end_headers()
 
     def _form(self):
@@ -2382,6 +2458,13 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- routes -----------------------------------------------------------
 
+    def do_HEAD(self):
+        # Same routing, status and headers as GET (including the
+        # security headers and Content-Length); _send withholds the
+        # body, as HEAD requires.
+        self._head_only = True
+        self.do_GET()
+
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
@@ -2389,6 +2472,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             joined = query.get("joined", [""])[0] == "1"
             self._send(200, landing_page(joined=joined))
+        elif path == "/.well-known/security.txt":
+            self._send(200, security_txt(),
+                       content_type="text/plain; charset=utf-8")
         elif path == "/sitemap.xml":
             self._send(200, sitemap_xml(),
                        content_type="application/xml; charset=utf-8")
