@@ -217,9 +217,8 @@ class GoogleNotConfigured(GoogleError):
     def __init__(self, missing):
         self.missing = list(missing)
         super().__init__(
-            "TenantCheck Google service account is not configured; "
-            "missing environment variable(s): "
-            + ", ".join(self.missing))
+            "The Google live connection is not switched on yet. "
+            "Setup on the product owner's side is not finished.")
 
 
 class GoogleSigningUnavailable(GoogleError):
@@ -378,7 +377,7 @@ def sign_rs256(signing_input, key_pem):
             "yet: RS256 signing needs the `cryptography` package, "
             "which is not available in this runtime (the Python "
             "standard library cannot sign). Nothing was sent to "
-            "Google and nothing was recorded. See SETUP-GOOGLE.md.")
+            "Google and nothing was recorded.")
     key = serialization.load_pem_private_key(
         key_pem.encode("utf-8"), password=None)
     signature = key.sign(signing_input.encode("ascii"),
