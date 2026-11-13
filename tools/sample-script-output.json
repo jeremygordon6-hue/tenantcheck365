@@ -5,7 +5,7 @@
     "firm_size_seats": 4,
     "label": "Exported from a live tenant by tenantcheck-export.ps1, run by the firm's own admin. Findings cover only what the export contains.",
     "snapshot_date": "2026-11-11",
-    "source_shape": "Built by tools/tenantcheck-export.ps1 from Microsoft Graph (users, authentication method registrations, directory role assignments, inbox rules, OAuth2 permission grants, service principals, Conditional Access policies, organization) plus owner-stated answers entered during the script run."
+    "source_shape": "Built by tools/tenantcheck-export.ps1 from Microsoft Graph (users, authentication method registrations, directory role assignments, inbox rules, OAuth2 permission grants, service principals, Conditional Access policies, organization, site and library permission lists) plus owner-stated answers entered during the script run."
   },
   "inboxRules": [
     {
@@ -54,12 +54,15 @@
     "backupEnabled": true,
     "backupLastSuccessfulDaysAgo": 2,
     "backupLastTestRestoreDaysAgo": 45,
+    "backupOfflineOrImmutableCopy": true,
     "conditionalAccessPolicyCount": 1,
     "deviceEncryptionPercent": 0,
     "edrCoveragePercent": 0,
     "incidentResponsePlanDocumented": false,
+    "penetrationTestLastMonthsAgo": 8,
     "securityTrainingCompletionPercent": 90,
-    "securityTrainingLastMonthsAgo": 6
+    "securityTrainingLastMonthsAgo": 6,
+    "writtenSecurityPolicyDocumented": true
   },
   "tenantSettings": {
     "externalSharingCapability": "ExistingExternalUserSharingOnly",
@@ -168,6 +171,40 @@
       "mfaRegistered": true,
       "roles": [],
       "userPrincipalName": "mia_external@bookkeepingpartner.example"
+    }
+  ],
+  "sharingInventory": [
+    {
+      "id": "site-client-files",
+      "kind": "sharepoint-site",
+      "displayName": "Client Files",
+      "webUrl": "https://fixtureaccounting.sharepoint.com/sites/ClientFiles",
+      "ownerDisplayName": "Priya Shah",
+      "ownerAccountEnabled": true,
+      "anyoneLinks": 0,
+      "anyoneLinkAccess": null,
+      "organizationLinks": 1,
+      "organizationLinkAccess": "view",
+      "everyoneAccess": null,
+      "everyoneExceptExternalUsersAccess": null,
+      "guestCount": 1,
+      "guestReshareAllowed": null
+    },
+    {
+      "id": "drive-derek",
+      "kind": "onedrive",
+      "displayName": "OneDrive - Derek Hale",
+      "webUrl": null,
+      "ownerDisplayName": "Derek Hale",
+      "ownerAccountEnabled": false,
+      "anyoneLinks": 0,
+      "anyoneLinkAccess": null,
+      "organizationLinks": 0,
+      "organizationLinkAccess": null,
+      "everyoneAccess": null,
+      "everyoneExceptExternalUsersAccess": null,
+      "guestCount": 0,
+      "guestReshareAllowed": null
     }
   ]
 }
