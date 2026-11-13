@@ -11,6 +11,23 @@ running on one tenant scan engine:
 - **InsureReady 365** — the same scan mapped to a representative
   Canadian cyber-insurance evidence questionnaire (Supported / Gap /
   Evidence missing, each tied to scan evidence).
+- **CopilotReady** (`copilot_audit.py`, a companion module — the
+  engine stays byte-identical) — the Copilot oversharing audit,
+  included in the scan at no separate price since 2026-11-13.
+  Microsoft Copilot answers only from what the asking employee may
+  already read, so broad sharing grants are the exposure. The audit
+  reads the snapshot's `sharingInventory` section (a per-site /
+  per-library permission digest written by the export script) and
+  reports, in plain English: anonymous "anyone with the link" links
+  (CA-ANYONE-LINK, Critical when editable, else High), grants to
+  "Everyone" (CA-EVERYONE-EXTERNAL, High), grants to every staff
+  member (CA-EVERYONE-STAFF, High when editable, else Medium),
+  company-wide links (CA-ORG-LINK, Medium), sites with no owner
+  found (CA-OWNERLESS, Medium), OneDrives whose owner account is
+  disabled (CA-DISABLED-OWNER, Medium), and guests allowed to
+  re-share (CA-GUEST-RESHARE, Medium). A snapshot without a
+  `sharingInventory` reports the audit as NOT COVERED — absence is
+  never rendered as a pass.
 
 **Honesty rule (product requirement):** TenantCheck 365 prepares
 evidence. It does not certify compliance and is not legal or insurance
@@ -71,9 +88,12 @@ deployment platform requires it — see `DEPLOY.md`.
   counts, TenantFix findings with severity/why/fix steps, the
   TokenWatch ranking table, the InsureReady question list — and are
   stored in `data/scans.json`, re-renderable at `/results/<id>`.
-- **Report downloads (`/report/<id>/tenantfix|tokenwatch|insureready`)**
+- **Report downloads (`/report/<id>/tenantfix|tokenwatch|insureready|copilot`)**
   — the engine's Markdown reports, byte-for-byte the prototype's
-  outputs, each DRAFT-stamped, served as file attachments.
+  outputs, each DRAFT-stamped, served as file attachments. The
+  `copilot` download is the CopilotReady audit report (or its
+  NOT COVERED note) from `copilot_audit.py`, carrying the same
+  DRAFT stamp.
 - **How to export (`/how-to-export`)** — a guided page with two
   paths. **Option A (about 10 minutes):** the customer firm's own
   admin downloads `tools/tenantcheck-export.ps1` (served at
@@ -108,13 +128,25 @@ renderer reads firm name / snapshot date / label from `_meta`.
 `demo_snapshot.json` is likewise copied in: a fabricated ~18-seat firm
 ("Maple & Main Bookkeeping Co.") with 24 planted problems (10
 TenantFix, 3 TokenWatch-flagged of 8 grants, 11 InsureReady gaps of
-13 questions), labelled fictional in the file and in every report.
+13 questions) plus, since 2026-11-13, a `sharingInventory` of 6
+sites and drives carrying 7 planted oversharing cases for the
+CopilotReady audit (manifested under `_planted.copilotaudit`),
+labelled fictional in the file and in every report.
 
 ## Verification
 
 ```bash
 python3 check_app.py
 ```
+
+**117 / 117 end-to-end checks passed** as of 2026-11-13 (the
+CopilotReady build added 15 checks: the demo tenant's 7 planted
+oversharing cases caught in-process against the snapshot's
+`_planted.copilotaudit` manifest and over HTTP, the script-shaped
+fixture's 2 findings, a no-inventory upload reporting the audit as
+NOT COVERED, the `/report/<id>/copilot` download with its DRAFT
+stamp, and the landing page presenting CopilotReady as included in
+the scan). The 2026-11-11 count was
 
 **67 / 67 end-to-end checks passed** (58 original checks as of
 2026-11-09, plus the export-helper checks added 2026-11-11: the
@@ -185,6 +217,21 @@ not validated prices, and no payment is collected in this build.
   a multi-tenant database. No user accounts. Demo verification proves
   the engine catches the problems planted in the demo snapshot; it is
   not evidence about any real tenant.
+- **CopilotReady reads permission lists, not content, and not every
+  permission.** The export script digests site-level and
+  library-root (drive root) permission lists; sharing links attached
+  to individual files or folders below that level are NOT enumerated
+  (that needs a per-item crawl of every file), so a clean audit is
+  not proof that no file-level link exists — the report says so. The
+  audit never sees file contents, so it cannot judge sensitivity;
+  the snapshot does not record Copilot licences, so findings are
+  framed as exposure *if* Copilot is used (the same grants are
+  readable today by the audience they name, Copilot or not); and
+  whether guests may re-share is not exposed by Microsoft Graph, so
+  the export writes it as null and that check stays silent. The
+  live-Graph path (`graph_connect.py`) does not yet emit a
+  `sharingInventory`, so Graph-connected scans currently report the
+  audit as not covered.
 
 ## Files
 
@@ -192,8 +239,9 @@ not validated prices, and no payment is collected in this build.
 |---|---|
 | `app.py` | The web app (stdlib only): pages, upload/scan flow, downloads, signup |
 | `m365.py` | The verified engine, copied byte-identical from `../m365-cluster/` |
+| `copilot_audit.py` | CopilotReady oversharing audit: runs on the snapshot's `sharingInventory`, renders the DRAFT-stamped audit report |
 | `demo_snapshot.json` | Fabricated demo tenant with planted-problems manifest |
-| `check_app.py` | Automated end-to-end verification (58 checks + engine 40/40) |
+| `check_app.py` | Automated end-to-end verification (117 checks + engine 40/40) |
 | `run.sh` | Start the app (PORT/HOST overridable, defaults 8795 / 127.0.0.1) |
 | `tools/tenantcheck-export.ps1` | Guided export helper the customer's own admin runs (Graph SDK, read-only) |
 | `tools/sample-script-output.json` | Fixture in exactly the script's output shape, uploaded by `check_app.py` |
