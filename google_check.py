@@ -7,11 +7,15 @@ A self-contained companion to the Microsoft 365 engine in m365.py
 IR-Q04 now answers "Evidence missing" when a snapshot records no
 Conditional Access policy count, instead of failing).
 
-The pattern mirrors TenantCheck 365 exactly: the scan runs on an
-EXPORTED snapshot JSON that the firm's own admin produced (Google
-Admin SDK / GAM-style export), or on the fictional demo tenant
-bundled with the app. There is NO live Google connection, no Google
-sign-in anywhere, and no Google credential is ever collected.
+The pattern mirrors TenantCheck 365 exactly: this engine runs on
+a snapshot JSON — produced either from an EXPORTED file the firm's
+own admin made (Google Admin SDK / GAM-style export), from the
+fictional demo tenant bundled with the app, or from the live
+connection in google_connect.py, which builds the same snapshot
+shape through a service account the domain's own admin authorized
+(domain-wide delegation; code built, owner setup pending — see
+SETUP-GOOGLE.md). There is no Google sign-in anywhere in the app,
+and no Google password is ever collected.
 
 Google snapshot schema (documented for customers on
 /google/how-to-export):
@@ -427,9 +431,10 @@ def render_googlefix(snap, findings):
                             "Fix Plan")
     out += [f"**{m365.FIX_PLAN_NOTE}**", "",
             "Platform note: this report covers a Google Workspace "
-            "domain, scanned from an export. It is the Google "
-            "companion to TenantCheck 365; nothing here connects "
-            "to Google.", "",
+            "domain. It is the Google companion to TenantCheck "
+            "365; the snapshot label above states whether these "
+            "findings came from an export or from the live "
+            "connection.", "",
             f"Findings: {len(findings)}", ""]
     order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
     for f in sorted(findings, key=lambda x: order[x["severity"]]):
