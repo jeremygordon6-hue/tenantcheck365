@@ -6,8 +6,10 @@ One brand over the three verified M365-cluster modules:
 
   * TenantFix 365   — Microsoft 365 hardening scan for small firms with
                       no IT person, plus an owner-approved fix plan.
-  * TokenWatch      — OAuth grant inventory ranked by scope x dormancy
-                      x consent, with unverified-publisher loading.
+  * TokenWatch      — OAuth grant inventory ranked by scope sensitivity
+                      and consent type, with an unverified-publisher
+                      loading. Time unused changes the rank only when
+                      the snapshot includes a real last-use date.
   * InsureReady 365 — the same scan mapped to a cyber-insurance
                       evidence pack (Supported / Gap / Evidence missing).
 
@@ -281,10 +283,10 @@ def home_json_ld():
          "Where the tenant data cannot support an answer, the pack "
          "says so instead of guessing."),
         ("How much does TenantCheck 365 cost?",
-         "Founding prices shown on this page: $149 one time for the "
-         "scan and fix plan, $39/month for monitoring with re-scan "
-         "alerts, and $49/month for the full bundle of all three "
-         "modules."),
+         "Founding prices shown on this page, in CAD: $149 CAD one "
+         "time for the scan and fix plan, $39 CAD/month for "
+         "monitoring with re-scan alerts, and $49 CAD/month for the "
+         "full bundle of all three modules."),
     ]
     faq = {
         "@context": "https://schema.org",
@@ -375,7 +377,8 @@ def error_page(title, message):
 
 def landing_page(joined=False):
     thanks = ('<div class="notice">Thanks — you are on the founding list. '
-              'We will write when the founding cohort opens.</div>') \
+              'Checkout is open now at the founding prices above.'
+              '</div>') \
         if joined else ""
     body = f"""
 <h1>Your Microsoft 365, checked before an attacker — or an insurer —
@@ -419,11 +422,11 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   Administrators, dormant admin accounts, broad guest access, and weak
   password policy. Every finding comes with the reason it matters and
   the exact fix steps, as an owner-approved fix plan.</p>
-  <p><strong>Founding price: $149</strong> one time for the scan and
-  fix plan · <strong>$39/month</strong> monitoring with re-scan alerts.</p>
+  <p><strong>Founding price: $149 CAD</strong> one time for the scan and
+  fix plan · <strong>$39 CAD/month</strong> monitoring with re-scan alerts.</p>
   <a class="btn" href="/scan">Run a scan</a>
-  <a class="btn" href="https://buy.stripe.com/00w9AMaJj76fbCu6AQ5Rm03">Buy the scan — $149</a>
-  <a class="btn" href="https://buy.stripe.com/9B66oAg3DgGP0XQ7EU5Rm04">Add monitoring — $39/month</a>
+  <a class="btn" href="https://buy.stripe.com/00w9AMaJj76fbCu6AQ5Rm03">Buy the scan — $149 CAD</a>
+  <a class="btn" href="https://buy.stripe.com/9B66oAg3DgGP0XQ7EU5Rm04">Add monitoring — $39 CAD/month</a>
 </div>
 
 <div class="card">
@@ -431,9 +434,14 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   <p>Every third-party app your people have connected to Microsoft 365
   keeps the access it was granted — often mail and file access — long
   after everyone forgot it. TokenWatch inventories every OAuth grant
-  and ranks it by what it can reach, how long it has sat unused, and
-  whether one user approved it alone, with extra weight on unverified
-  publishers. These grants bypass MFA entirely.</p>
+  and ranks it by what it can reach, whether one user approved it
+  alone, and whether the publisher is verified. Time unused changes
+  that rank only when the snapshot includes a real last-use date.
+  The export script does not have one: Microsoft’s permission-grant
+  records do not include last use, so an export is ranked without a
+  dormancy guess and last use shows as unknown. A live connection
+  can fill last use from the app’s sign-in logs when Microsoft
+  returns them. These grants bypass MFA entirely.</p>
   <p>Included in the bundle below.</p>
 </div>
 
@@ -453,11 +461,12 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   <p>TenantFix + TokenWatch + InsureReady on one tenant scan engine,
   with scheduled re-scans so the state you attested to stays true
   between renewals.</p>
-  <p><strong>Founding price: $49/month</strong> for the full bundle.</p>
-  <a class="btn" href="https://buy.stripe.com/9B600cdVv1LV9umgbq5Rm05">Subscribe — $49/month</a>
+  <p><strong>Founding price: $49 CAD/month</strong> for the full bundle.</p>
+  <a class="btn" href="https://buy.stripe.com/9B600cdVv1LV9umgbq5Rm05">Subscribe — $49 CAD/month</a>
   <p class="small">Founding prices are the introductory prices for the
-  first cohort, and checkout is open now. Join the list below and
-  founding pricing is locked for you.</p>
+  first cohort, and checkout is open now at those prices. The list
+  below records your details so we can write to you about the founding
+  offer.</p>
 </div>
 
 <div class="card">
@@ -465,7 +474,10 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   <p>The demo runs the full scan on a fictional 18-person bookkeeping
   firm with real problems planted in it — no MFA on three accounts
   including an admin, an inbox rule forwarding invoices to an outside
-  address, and a forgotten app with mail access unused for 210 days.
+  address, and a forgotten app with mail access. The demo snapshot
+  includes a last-use date for that app (210 days) so the ranking
+  can show the time-unused factor. An export from the script does
+  not include that date, and last use stays unknown.
   Same engine, same reports, zero risk.</p>
   <form method="post" action="/scan/demo">
     <button type="submit">Run the demo scan</button>
@@ -474,9 +486,10 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
 
 <div class="card">
   <h2>Join the founding list</h2>
-  <p>Leave your details and we will write when the founding cohort
-  opens. No email is sent by this form — it only records your details
-  for the launch note.</p>
+  <p>Checkout is open now at the founding prices above. Leave your
+  details and we will write to you about the founding offer. No email
+  is sent by this form — it only records your details so we can send
+  that note.</p>
   {thanks}
   <form method="post" action="/founding">
     <label for="name">Your name</label>
@@ -568,11 +581,18 @@ step.</p>
   If the module is missing, the script stops and prints the one
   install command — nothing to install from us.</p>
   <p><strong>2. Run it.</strong> Save the download, open PowerShell in
-  that folder, and run:
-  <code>powershell -ExecutionPolicy Bypass -File
-  .\tenantcheck-export.ps1</code>. The Bypass flag applies to this
-  one run only; the script itself is plain text and you can read
-  every line before running it.</p>
+  that folder, and run:</p>
+  <pre class="sample">Unblock-File -LiteralPath .\tenantcheck-export.ps1
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+.\tenantcheck-export.ps1</pre>
+  <p class="small">Windows marks a downloaded script as coming from
+  the internet and may refuse to run it. <code>Unblock-File</code>
+  clears that mark on this file only.
+  <code>Set-ExecutionPolicy -Scope Process</code> allows local scripts
+  in this window only (<code>RemoteSigned</code>). That is enough to
+  run this script, and the change ends when you close the window. It
+  does not turn script checks off for anything else. The script itself
+  is plain text and you can read every line before running it.</p>
   <p><strong>3. Sign in — to Microsoft, not to us.</strong> A
   Microsoft sign-in window opens. You sign in with your own admin
   account and approve a fixed list of <strong>read-only</strong>
@@ -594,11 +614,12 @@ step.</p>
   the <a href="/scan">scan page</a> and review your three reports.
   Fixes are listed as steps in an owner-approved plan; this tool
   applies nothing.</p>
-  <p class="small">Two honest limits of the script: Microsoft does not
-  expose when each third-party app grant was last used, so grants are
-  scored without a dormancy guess; and it cannot see how broadly a
-  guest account can reach, so guests are never flagged on a guess —
-  both facts are stated in the script itself.</p>
+  <p class="small">Two honest limits of the script: permission-grant
+  records do not include when an app was last used, and this script
+  does not read app sign-in logs, so every grant is written with last
+  use unknown and scored without a dormancy guess. It also cannot see
+  how broadly a guest account can reach, so guests are never flagged
+  on a guess. Both limits are stated in the script itself.</p>
 </div>
 
 <div class="card">
@@ -628,9 +649,12 @@ step.</p>
             admin sharing settings, domain password policy</td></tr>
     <tr><td><code>oauthGrants</code></td>
         <td>Third-party app consents: app name, scopes granted, who
-            consented, publisher verification, last use</td>
+            consented, and publisher verification. Last use is not
+            included — Microsoft’s grant records do not include it,
+            so the export writes last use as unknown</td>
         <td>Enterprise applications — Graph OAuth2 permission grants
-            and service principals</td></tr>
+            and service principals. The script does not read app
+            sign-in logs</td></tr>
     <tr><td><code>securityControls</code></td>
         <td>Conditional Access policy count, EDR and encryption
             coverage, backup state, training currency, incident
@@ -679,35 +703,20 @@ monitoring offer — re-scans that catch a new risky app grant or an MFA
 change between insurance renewals — needs a standing, read-only
 connection. This is exactly what the connection requires:</p>"""
     else:
-        remaining = "".join(
-            f"<li><code>{escape(name)}</code></li>"
-            for name in cfg["missing_config"])
         status = f"""
 <div class="deadline">
   <strong>Status, plainly:</strong> setup is pending. The live
-  connection code is built, but it is <strong>not switched on</strong>
-  in this version because the app registration is not configured on
-  this server yet. {PRODUCT} runs today on an uploaded export
-  (<a href="/how-to-export">how that works</a>) — nothing on this site
-  connects to your tenant, and nothing here can.
-  <p>What remains, on the product owner's side:</p>
-  <ol>
-    <li>Register the app in Microsoft Entra ID (an Azure app
-    registration) with the redirect URI
-    <code>https://tenantcheck365.ca/connect/callback</code>.</li>
-    <li>Create a client secret on that registration.</li>
-    <li>Add these environment variables on the host (Render) and
-    restart the service:
-    <ul>{remaining}</ul></li>
-  </ol>
-  <p>Until then, the <a href="/connect">connect page</a> stays off and
-  says the same thing this page does.</p>
+  connection is <strong>not switched on</strong> yet, so nothing on
+  this site connects to your tenant. {PRODUCT} runs today on an
+  uploaded export (<a href="/how-to-export">how that works</a>).
+  The <a href="/connect">connect page</a> stays off until setup is
+  finished, and it says the same thing this page does.
 </div>
 <p>Uploading an export works, but it is a snapshot of one day. The
 monitoring offer — re-scans that catch a new risky app grant or an MFA
 change between insurance renewals — needs a standing, read-only
-connection. This is exactly what that connection will require, so you
-can judge it before it exists:</p>"""
+connection. This is what that connection means, so you can judge it
+before it is switched on:</p>"""
     body = f"""
 <h1>The live connection — how it works</h1>
 {status}
@@ -744,8 +753,13 @@ can judge it before it exists:</p>"""
 <div class="notice">
   <strong>Standing rules, live or not:</strong> we never collect or
   store Microsoft passwords — there is no password field anywhere in
-  this product. Fixes are never applied without the owner's approval
-  of each step; a read-only connection cannot apply them anyway.
+  this product. The permissions are read-only: directory and role
+  reads, policy reads, app-consent reads, and inbox rule settings.
+  No mail contents, and nothing that can change the tenant. A live
+  scan stores the same kind of snapshot as an upload, only as your
+  scan record, so the reports stay downloadable. Fixes are never
+  applied without the owner's approval of each step; a read-only
+  connection cannot apply them anyway.
 </div>
 <p class="small">{HONESTY_LINE}</p>
 """
@@ -761,21 +775,19 @@ def connect_page(message=None):
     notice = (f'<div class="notice">{escape(message)}</div>'
               if message else "")
     if not cfg["consent_ready"]:
-        remaining = "".join(
-            f"<li><code>{escape(name)}</code></li>"
-            for name in cfg["missing_config"])
         body = f"""
 <h1>Connect your tenant</h1>
 {notice}
 <div class="deadline">
   <strong>Setup is pending.</strong> The live connection is switched
-  off until the product owner finishes the app registration on this
-  server, so this page cannot start a consent and nothing has been
-  sent to Microsoft. What remains:
-  <ul>{remaining}</ul>
-  See <a href="/live-connection">how the live connection works</a>
-  for the full picture. In the meantime the
-  <a href="/scan">export-based scan</a> works exactly as before.
+  off until setup is finished, so this page cannot start a consent
+  and nothing has been sent to Microsoft. When it is on, it is
+  read-only: your own Global Administrator grants or refuses tenant
+  admin consent on Microsoft’s screen. We never ask for your
+  Microsoft password. See
+  <a href="/live-connection">how the live connection works</a>
+  for the permissions and how the data is handled. In the meantime
+  the <a href="/scan">export-based scan</a> works exactly as before.
 </div>
 <p class="small">{HONESTY_LINE}</p>
 """
@@ -810,9 +822,10 @@ def connect_page(message=None):
                           "after its own admin grants consent.</p>")
     if not cfg["scan_ready"]:
         connected_html += ('<div class="notice">Consent can be '
-                           'recorded now, but live scans also need '
-                           '<code>TENANTCHECK_MS_CLIENT_SECRET</code> '
-                           'to be configured on this server.</div>')
+                           'recorded now. A live scan stays off until '
+                           'setup is finished, so nothing is read from '
+                           'the tenant yet. When a scan is on, it is '
+                           'read-only.</div>')
     body = f"""
 <h1>Connect your tenant</h1>
 {notice}
@@ -850,13 +863,13 @@ for it.</div>
     elif status == "not_configured":
         body = f"""
 <h1>Setup is pending</h1>
-<div class="notice">{escape(detail)} Nothing was recorded.</div>
+<div class="notice">{escape(redact_secrets(detail))} Nothing was recorded.</div>
 <p><a href="/live-connection">How the live connection works</a></p>
 """
     else:
         body = f"""
 <h1>Consent not recorded</h1>
-<div class="notice">{escape(detail)} Nothing was recorded. You can
+<div class="notice">{escape(redact_secrets(detail))} Nothing was recorded. You can
 start again from the <a href="/connect">connect page</a>.</div>
 <p class="small">{HONESTY_LINE}</p>
 """
@@ -1096,8 +1109,13 @@ Scanned: {escape(record['timestamp'])}</p>
 
 <div class="card">
   <h2>TokenWatch — OAuth grant risk inventory</h2>
-  <p>Risk = scope sensitivity × dormancy × consent type, with a loading
-  for unverified publishers. Ranked highest risk first.</p>
+  <p>Ranked by scope sensitivity, whether one user approved the grant
+  alone, and whether the publisher is verified. Time unused raises
+  the score only when Last used is a number of days. Unknown means
+  the snapshot has no last-use date — that is every grant from the
+  export script, because Microsoft’s grant records do not include
+  it — and an unknown date does not change the rank. Highest risk
+  first.</p>
   {tokenwatch_html(record['tokenwatch'])}
 </div>
 
@@ -1170,12 +1188,26 @@ REPORT_FILES = {
 }
 
 
+def redact_secrets(text):
+    """Drop configured secret values from text that may be shown or
+    logged. An empty value must not be treated as a secret, or it
+    would wipe the whole string."""
+    if not text:
+        return text
+    secret = (os.environ.get(graph_connect.ENV_CLIENT_SECRET) or "").strip()
+    if secret and secret in text:
+        text = text.replace(secret, "[redacted]")
+    return text
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "TenantCheck365/1.0"
 
     def log_message(self, fmt, *args):
-        sys.stderr.write("%s - %s\n" % (self.address_string(),
-                                        fmt % args))
+        # Request lines only. Secret values are stripped in case a
+        # query string ever carries one; bodies are not logged.
+        sys.stderr.write("%s - %s\n" % (
+            self.address_string(), redact_secrets(fmt % args)))
 
     # -- helpers ----------------------------------------------------------
 
@@ -1328,7 +1360,7 @@ class Handler(BaseHTTPRequestHandler):
         except graph_connect.GraphError as exc:
             self._send(502, error_page(
                 "Microsoft Graph could not be reached",
-                str(exc)))
+                redact_secrets(str(exc))))
             return
         if outcome["status"] == "incomplete":
             self._send(200, connect_incomplete_page(

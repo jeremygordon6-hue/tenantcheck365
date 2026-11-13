@@ -159,21 +159,25 @@ def main():
         check("landing presents TokenWatch", "TokenWatch" in body)
         check("landing presents InsureReady 365",
               "InsureReady 365" in body)
-        check("landing shows TenantFix founding price $149",
-              "$149" in body)
-        check("landing shows monitoring founding price $39/month",
-              "$39/month" in body)
-        check("landing shows bundle founding price $49/month",
-              "$49/month" in body)
+        check("landing shows TenantFix founding price $149 CAD",
+              "$149 CAD" in body)
+        check("landing shows monitoring founding price $39 CAD/month",
+              "$39 CAD/month" in body)
+        check("landing shows bundle founding price $49 CAD/month",
+              "$49 CAD/month" in body)
         check("landing labels prices as founding prices",
               "Founding price" in body)
-        # NOTE: the pre-Stripe version of this check asserted the
-        # landing says no payment is taken. Checkout was wired into
-        # the live site on 2026-11-10 (see README history in git-era
-        # notes / parent record), so the assertion now verifies the
-        # landing's current, truthful claim instead.
+        # Checkout is the three Stripe Payment Links on the landing
+        # page. The founding list records a contact; it does not say
+        # the cohort is still closed.
         check("landing states checkout is open now",
               "checkout is open now" in body)
+        check("landing does not say the cohort is still closed",
+              "when the founding cohort opens" not in body)
+        check("landing does not claim every grant is ranked by time unused",
+              "how long it has sat unused" not in body)
+        check("landing says time unused counts only with a real last-use date",
+              "real last-use date" in body)
         check("landing honesty: does not certify compliance",
               "does not certify compliance" in body)
         check("landing honesty: not legal or insurance advice",
@@ -202,6 +206,16 @@ def main():
               "Option A" in body and "/export-script" in body)
         check("how-to-export keeps the manual fallback (Option B)",
               "Option B" in body)
+        check("how-to-export does not use ExecutionPolicy Bypass",
+              "ExecutionPolicy Bypass" not in body
+              and "-ExecutionPolicy Bypass" not in body)
+        check("how-to-export uses Unblock-File and process scope",
+              "Unblock-File" in body
+              and "-Scope Process" in body
+              and "RemoteSigned" in body)
+        check("how-to-export says grant last use is not in the export",
+              "Last use is not" in body
+              and "do not include it" in body)
 
         # ---- export script download --------------------------------
         status, headers, raw_body = request("GET", "/export-script")
@@ -220,6 +234,10 @@ def main():
               and "Connect-MgGraph" in raw_body
               and "tenantcheck-snapshot.json" in raw_body
               and len(raw_body) == len(disk_script))
+        check("export script does not instruct ExecutionPolicy Bypass",
+              "ExecutionPolicy Bypass" not in disk_script
+              and "Unblock-File" in disk_script
+              and "-Scope Process" in disk_script)
         status, _h, body = get("/live-connection")
         check("live-connection returns 200", status == 200)
         check("live-connection names the Azure app registration",
@@ -297,6 +315,8 @@ def main():
               "11 of 13 insurance questions" in body)
         check("demo: worst grant MailFlow Pro is surfaced",
               "MailFlow Pro" in body)
+        check("demo: planted last-use of 210 days is shown",
+              "210 days ago" in body)
         check("demo: fix plan states it does NOT apply fixes",
               "does NOT apply" in body)
         check("demo: results carry the DRAFT stamp",
@@ -364,6 +384,8 @@ def main():
               "1 of 2 app grants flagged" in body)
         check("fixture: InsureReady finds 5 gaps of 13 questions",
               "5 of 13 insurance questions" in body)
+        check("fixture: export last use is unknown, not a guessed dormancy",
+              "<td>unknown</td>" in body and "None days" not in body)
 
         status, _h, body = post_multipart("/scan/upload", "snapshot",
                                           "bad.json", b"this is not json")
@@ -432,12 +454,22 @@ def main():
         status, _h, body = get("/live-connection")
         check("graph pending: live-connection says setup is pending",
               "setup is pending" in body)
-        check("graph pending: live-connection names what remains",
-              "TENANTCHECK_MS_CLIENT_ID" in body
-              and "TENANTCHECK_MS_CLIENT_SECRET" in body)
+        check("graph pending: live-connection stays user-facing",
+              "not switched on" in body
+              and "read-only" in body
+              and "Render" not in body
+              and "TENANTCHECK_MS_" not in body
+              and "CLIENT_SECRET" not in body
+              and "environment variable" not in body.lower())
         status, _h, body = get("/connect")
         check("graph pending: connect page returns 200 and refuses "
               "gracefully", status == 200 and "Setup is pending" in body)
+        check("graph pending: connect page does not name the host or "
+              "env vars",
+              "Render" not in body
+              and "TENANTCHECK_MS_" not in body
+              and "CLIENT_SECRET" not in body
+              and "environment variable" not in body.lower())
         check("graph pending: connect page offers no consent link",
               "adminconsent" not in body)
         status, _h, body = post_form("/connect/scan",
@@ -491,11 +523,22 @@ def main():
             status, body = get2("/live-connection")
             check("graph configured: live-connection says setup is "
                   "complete", "setup is complete" in body)
+            check("graph configured: live-connection does not leak "
+                  "hosting or the secret",
+                  "Render" not in body
+                  and "TENANTCHECK_MS_" not in body
+                  and "check-secret-not-real" not in body)
             status, body = get2("/connect")
             check("graph configured: connect page builds the admin "
                   "consent URL",
                   "login.microsoftonline.com/organizations/adminconsent"
                   in body and "client_id=check-client-id" in body)
+            check("graph configured: connect page does not leak the "
+                  "secret or env var names",
+                  "check-secret-not-real" not in body
+                  and "TENANTCHECK_MS_" not in body
+                  and "Render" not in body
+                  and "CLIENT_SECRET" not in body)
             mstate = re.search(r"state=([0-9a-f]{32})", body)
             check("graph configured: consent URL carries a state",
                   bool(mstate))

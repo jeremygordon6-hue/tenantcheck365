@@ -124,15 +124,24 @@ STATE_TTL_SECONDS = 900
 class GraphError(Exception):
     """A Graph or token call failed. Messages never contain secrets."""
 
+    def __init__(self, message):
+        secret = (os.environ.get(ENV_CLIENT_SECRET) or "").strip()
+        if secret and secret in message:
+            message = message.replace(secret, "[redacted]")
+        super().__init__(message)
+
 
 class GraphNotConfigured(GraphError):
     """Raised when an operation needs configuration that is absent."""
 
     def __init__(self, missing):
         self.missing = list(missing)
+        # The missing names stay on self.missing for the operator.
+        # The message is what a page might show, so it does not list
+        # them.
         super().__init__(
-            "TenantCheck Microsoft app registration is not configured; "
-            "missing environment variable(s): " + ", ".join(self.missing))
+            "TenantCheck Microsoft app registration is not configured "
+            "yet, so this connection cannot start.")
 
 
 # ---------------------------------------------------------------------------

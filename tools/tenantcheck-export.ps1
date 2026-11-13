@@ -40,9 +40,10 @@
     see under SharePoint admin centre > Policies > Sharing. If you are
     not sure, it records the middle option and flags it for you to
     verify before trusting the sharing result.
-  * How long ago each third-party app grant was last used is not
-    exposed by Graph. lastUsedDaysAgo is written as null for every
-    grant; the scan then scores dormancy neutrally instead of guessing.
+  * Permission-grant records do not include when an app was last
+    used, and this script does not read app sign-in logs.
+    lastUsedDaysAgo is written as null for every grant; the scan
+    then scores dormancy neutrally instead of guessing.
   * How broadly a guest account can reach inside the tenant is not
     exposed by Graph. guestAccessLevel is written as null; the scan
     never flags a guest on a guess. Review guest access manually.
@@ -59,7 +60,15 @@
   the current folder.
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File .\tenantcheck-export.ps1
+  Unblock-File -LiteralPath .\tenantcheck-export.ps1
+  Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+  .\tenantcheck-export.ps1
+
+  Windows marks a downloaded script as coming from the internet.
+  Unblock-File clears that mark on this file only. -Scope Process
+  allows local scripts in this window only (RemoteSigned) and does
+  not turn script checks off for anything else. Close the window
+  and the change is gone.
 
 .NOTES
   Requirements: Windows PowerShell 5.1 or PowerShell 7, the Microsoft
@@ -365,8 +374,9 @@ try {
             consentType         = "$($g.ConsentType)"
             consentedBy         = $consentedBy
             id                  = $g.Id
-            # Graph does not expose when a grant was last used; null
-            # keeps the dormancy score neutral instead of guessed.
+            # The grant record has no last-use field, and this script
+            # does not read app sign-in logs. Null keeps the dormancy
+            # score neutral instead of guessed.
             lastUsedDaysAgo     = $null
             publisherVerified   = $verified
             resourceDisplayName = $resourceName

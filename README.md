@@ -7,7 +7,12 @@ running on one tenant scan engine:
   (roughly 3–50 seats) with no IT person, plus an owner-approved fix
   plan.
 - **TokenWatch** — OAuth grant inventory ranked by scope sensitivity ×
-  dormancy × consent type, with a loading for unverified publishers.
+  consent type, with a loading for unverified publishers. Time unused
+  changes the rank only when the snapshot includes a real last-use
+  date. The export script writes that date as null, because Graph
+  permission grants do not include it, so an export is ranked without
+  a dormancy guess. The live Graph path can fill it from app sign-in
+  logs when Microsoft returns them.
 - **InsureReady 365** — the same scan mapped to a representative
   Canadian cyber-insurance evidence questionnaire (Supported / Gap /
   Evidence missing, each tied to scan evidence).
@@ -41,10 +46,12 @@ This build uses **free / open-source tools only**:
 | Storage | JSON files under `data/` (created at runtime) | Free |
 | Process | `bash run.sh` | Free |
 
-The **only** future paid-adjacent pieces are **payment processing**
-(Stripe) and **hosting**, and the **Azure app registration** for live
-scans — all explicitly **not** included in this build. No payments are
-collected anywhere in this app, and nothing is deployed.
+Checkout is three Stripe Payment Links on the landing page. The
+amounts are in CAD, which is the currency configured on those links.
+Card numbers are entered on Stripe, not in this app, and this app
+does not record whether a payment succeeded. The live Microsoft
+Graph connection stays off until the app registration in
+`SETUP-GRAPH.md` is configured.
 
 ## Run it
 
@@ -116,13 +123,17 @@ TenantFix, 3 TokenWatch-flagged of 8 grants, 11 InsureReady gaps of
 python3 check_app.py
 ```
 
-**67 / 67 end-to-end checks passed** (58 original checks as of
-2026-11-09, plus the export-helper checks added 2026-11-11: the
-guided page offers Option A and Option B, `/export-script` serves
-the script file as an attachment, and a fixture in exactly the
-script's output shape passes the upload flow with its expected
-results — 3 TenantFix findings, 1 of 2 grants flagged, 5 of 13
-InsureReady gaps): server and landing
+**114 / 114 end-to-end checks passed** (58 original checks as of
+2026-11-09, plus the export-helper checks added 2026-11-11, plus the
+public-claim checks: CAD on the founding prices, no ExecutionPolicy
+Bypass, no host or environment-variable names on the connection
+pages, and export last-use shown as unknown). The export-helper
+checks confirm the guided page offers Option A and Option B,
+`/export-script` serves the script file as an attachment, and a
+fixture in exactly the script's output shape passes the upload flow
+with its expected results — 3 TenantFix findings, 1 of 2 grants
+flagged, 5 of 13 InsureReady gaps. The rest of the suite covers
+server and landing
 (all three modules, all three founding prices, honesty line, signup
 fields), explainer pages (export sources, consent steps, "not
 switched on" status), demo flow returning the prototype's exact
@@ -140,9 +151,9 @@ test entries never reach the real stores.
 
 | Offer | Founding price |
 |---|---|
-| TenantFix 365 scan + owner-approved fix plan | **$149** one time |
-| TenantFix monitoring (scheduled re-scan alerts) | **$39/month** |
-| Full bundle (TenantFix + TokenWatch + InsureReady) | **$49/month** |
+| TenantFix 365 scan + owner-approved fix plan | **$149 CAD** one time |
+| TenantFix monitoring (scheduled re-scan alerts) | **$39 CAD/month** |
+| Full bundle (TenantFix + TokenWatch + InsureReady) | **$49 CAD/month** |
 
 **Pricing source note (required honesty):** the CTIO research behind
 these modules validated **no dollar price** for any of them. What the
@@ -155,11 +166,13 @@ InsureReady's willingness-to-pay signal is deadline-driven (annual
 renewal), with the dollar figure unvalidated (Track A §2). The
 research's own stated next step for TenantFix was validation with 5
 tenant scans before any price is set. The founding prices above
-therefore follow the **NorthCheck founding ladder** ($149 evidence
-pack / $39 monitoring / $49 subscription) as deliberate introductory
+therefore follow the **NorthCheck founding ladder** ($149 CAD evidence
+pack / $39 CAD monitoring / $49 CAD subscription) as deliberate introductory
 hypotheses for the first cohort — labelled "founding prices" on the
 site, to be confirmed or changed by those validation scans. They are
-not validated prices, and no payment is collected in this build.
+not validated prices. Checkout for these amounts is open through the
+Stripe Payment Links on the landing page, in CAD. The app does not
+take card numbers and does not record whether a payment succeeded.
 
 ## Limitations (stated plainly)
 
@@ -193,7 +206,7 @@ not validated prices, and no payment is collected in this build.
 | `app.py` | The web app (stdlib only): pages, upload/scan flow, downloads, signup |
 | `m365.py` | The verified engine, copied byte-identical from `../m365-cluster/` |
 | `demo_snapshot.json` | Fabricated demo tenant with planted-problems manifest |
-| `check_app.py` | Automated end-to-end verification (58 checks + engine 40/40) |
+| `check_app.py` | Automated end-to-end verification (114 checks + engine 40/40) |
 | `run.sh` | Start the app (PORT/HOST overridable, defaults 8795 / 127.0.0.1) |
 | `tools/tenantcheck-export.ps1` | Guided export helper the customer's own admin runs (Graph SDK, read-only) |
 | `tools/sample-script-output.json` | Fixture in exactly the script's output shape, uploaded by `check_app.py` |

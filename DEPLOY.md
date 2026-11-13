@@ -1,7 +1,9 @@
 # TenantCheck 365 — going live (NOT done in this build)
 
-This build is verified locally only. **Nothing has been deployed, no
-payment collection exists, and no live Microsoft connection exists.**
+This build is verified locally only. **Checkout is the Stripe Payment
+Links on the landing page (section 3), in CAD. This app does not take
+card numbers. A live Microsoft connection exists in code and stays off
+until `SETUP-GRAPH.md` is done.**
 Going live is three separate steps, each needing Jeremy's explicit
 go-ahead:
 
@@ -35,10 +37,11 @@ Same pattern NorthCheck used (Render free tier from a GitHub repo):
 
 ## 3. Payments (Stripe)
 
-- Create Stripe products for the founding prices (TenantFix scan
-  $149 one-time, monitoring $39/month, bundle $49/month) on the live
-  Stripe account, as was done for NorthCheck.
-- Add buy buttons / checkout links to the landing page deliberately;
-  this build intentionally has none.
+- Stripe Payment Links for the founding prices are on the landing
+  page: TenantFix scan $149 CAD one time, monitoring $39 CAD/month,
+  bundle $49 CAD/month. CAD is the currency configured on those live
+  Payment Links. The amounts are unchanged.
+- The app links out to Stripe. It does not take card numbers, and it
+  does not record whether a payment succeeded.
 - Prices are founding hypotheses (see README pricing note) — the
-  research's validation scans may change them before charging starts.
+  research's validation scans may change them.

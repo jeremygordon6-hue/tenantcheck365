@@ -4,7 +4,9 @@ M365 Cluster prototype - one tenant scan engine, three paid outputs.
 
 Modules:
   TenantFix 365   - deterministic hardening checks + owner-approved fix plan
-  TokenWatch      - OAuth grant inventory ranked by scope x dormancy x consent
+  TokenWatch      - OAuth grant inventory ranked by scope sensitivity and
+                    consent. Time unused changes the rank only when a
+                    real last-use date is present.
   InsureReady 365 - scan results mapped to a cyber-insurance evidence pack
 
 Python standard library only. Offline snapshot prototype: it reads an
@@ -439,15 +441,19 @@ def render_tenantfix(snap, findings):
 
 def render_tokenwatch(snap, inventory):
     out = header(snap, "TokenWatch - OAuth Grant Risk Inventory")
-    out += ["Risk = scope sensitivity x dormancy x consent type, with a "
-            "loading for unverified publishers. Grants are ranked highest "
-            "risk first.", ""]
+    out += ["Ranked by scope sensitivity, whether one user approved the "
+            "grant, and whether the publisher is verified. Time unused "
+            "raises the score only when a last-use date is present. An "
+            "unknown last use does not change the rank. Grants are "
+            "ranked highest risk first.", ""]
     for i in inventory:
         flag = "FLAGGED" if i["flagged"] else "ok"
+        last = i["last_used_days_ago"]
+        last_txt = "unknown" if last is None else f"{last} days ago"
         out += [f"## {i['app']} - risk {i['risk']} [{flag}]",
                 f"Scopes: {', '.join(i['scopes'])} "
                 f"(scope score {i['scope_score']})",
-                f"Last used: {i['last_used_days_ago']} days ago | "
+                f"Last used: {last_txt} | "
                 f"Consent: {i['consent_type']} | "
                 f"Publisher verified: {i['publisher_verified']}"]
         if i["flag_reasons"]:
