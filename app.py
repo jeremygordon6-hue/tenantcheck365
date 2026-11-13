@@ -19,10 +19,15 @@ One brand over the three verified M365-cluster modules:
                       AI Governance Pack are produced with every scan
                       (app.py; the change report is in-product only —
                       no email alerts, no scheduler).
-  * Google Workspace companion (google_check.py): an export-based
-                      scan for Google domains at /google — same
-                      pattern, no live Google connection, no Google
-                      credentials collected.
+  * Google Workspace companion (google_check.py): a scan for
+                      Google domains at /google — same pattern,
+                      export-based, plus a live connection code
+                      side (google_connect.py) mirroring the
+                      Microsoft one: a service account with
+                      domain-wide delegation authorized by each
+                      customer domain's own admin. INACTIVE until
+                      the owner setup in SETUP-GOOGLE.md is done;
+                      no Google passwords are ever collected.
 
 Stack: Python standard library only — http.server, server-rendered
 HTML with inline CSS, no JavaScript frameworks, no external requests.
@@ -67,8 +72,10 @@ import copilot_audit  # Copilot oversharing audit (companion module;
                       # runs on the snapshot's sharingInventory)
 import graph_connect  # live Microsoft Graph connection (inactive
                       # until the TENANTCHECK_MS_* env vars are set)
-import google_check  # Google Workspace companion (export-based;
-                      # no live Google connection, no credentials)
+import google_check  # Google Workspace companion engine
+import google_connect  # live Google Workspace connection (inactive
+                      # until the TENANTCHECK_GOOGLE_* env vars are
+                      # set; see SETUP-GOOGLE.md)
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(APP_DIR, "data")
@@ -260,13 +267,30 @@ PAGE_SEO = {
             "view, and the same insurance questionnaire answered "
             "from the same export.",
     },
+    "The Google live connection": {
+        "path": "/google/live-connection",
+        "description":
+            "How the TenantCheck for Google Workspace live "
+            "connection works: a service account authorized by "
+            "your own admin through domain-wide delegation, with "
+            "read-only scopes. No passwords, ever.",
+    },
+    "Connect your Google Workspace domain": {
+        "path": "/google/connect",
+        "description":
+            "Connect your Google Workspace domain: your own super "
+            "admin authorizes our service account in your Admin "
+            "console, sees the exact read-only scope list first, "
+            "and can revoke it at any time.",
+    },
 }
 
 # The public GET pages a crawler may index — never result views,
 # report downloads or the export-script download, whose URLs are
 # per-record or file downloads.
 SITEMAP_PATHS = ["/", "/scan", "/how-to-export", "/live-connection",
-                 "/connect", "/google", "/google/how-to-export"]
+                 "/connect", "/google", "/google/how-to-export",
+                 "/google/live-connection", "/google/connect"]
 
 
 def sitemap_xml():
@@ -538,8 +562,11 @@ and an evidence pack your cyber-insurance renewal can actually use.</p>
   scan checks the same ground — 2-Step Verification, dormant and
   admin accounts, third-party and AI app access, Drive sharing —
   from an export your own admin produces, and answers the same
-  insurance questionnaire wherever it honestly maps. No live
-  Google connection, no Google sign-in, no password.</p>
+  insurance questionnaire wherever it honestly maps. A live
+  connection option is built for it too, switched on once the
+  owner setup is done — its
+  <a href="/google/live-connection">status page</a> says plainly
+  whether it is on. No Google sign-in, no password.</p>
   <a class="btn" href="/google">Open the Google Workspace scan</a>
 </div>
 
@@ -1822,18 +1849,47 @@ def run_google_and_store(snap, source):
 
 def google_landing_page(error=None):
     err = f'<div class="notice">{escape(error)}</div>' if error else ""
+    gcfg = google_connect.config()
+    if gcfg["configured"]:
+        live_card = """
+<div class="card">
+  <h2>Live connection — connect your domain</h2>
+  <p><strong>Status: setup is complete on this server.</strong>
+  Your own super admin can authorize our service account in your
+  Admin console (domain-wide delegation, read-only scopes) and
+  register the domain — see
+  <a href="/google/connect">connect your domain</a> for the exact
+  steps and scope list, or
+  <a href="/google/live-connection">how the live connection
+  works</a>. The export scan below keeps working either way.</p>
+</div>"""
+    else:
+        live_card = """
+<div class="card">
+  <h2>Live connection — connect your domain</h2>
+  <p><strong>Status: setup is pending.</strong> A live connection
+  is built for this scan — a service account your own super admin
+  authorizes in your Admin console (domain-wide delegation,
+  read-only scopes) — but it is not switched on until the product
+  owner finishes the setup described in SETUP-GOOGLE.md. See
+  <a href="/google/live-connection">how the live connection will
+  work</a> and what its status is. Until then, the export scan
+  below is how Google domains are scanned.</p>
+</div>"""
     body = f"""
 <h1>TenantCheck for Google Workspace</h1>
 <p>Not on Microsoft 365? This is the companion scan for a Google
-Workspace domain, built on the same pattern: <strong>export-based,
-no live connection, and no Google sign-in or password asked for,
-ever</strong>. Your own admin exports the domain's settings as one
-JSON file; the scan checks 2-Step Verification, dormant and admin
-accounts, third-party and AI app access, Drive sharing settings
-and external group members — and answers the same 25-question
-insurance questionnaire from the same export, wherever a question
-honestly maps to Google evidence.</p>
+Workspace domain: <strong>the scan runs on an export today, a live
+connection is built and waits on owner setup, and no Google
+sign-in or password is asked for, ever</strong>. Your own admin
+exports the domain's settings as one JSON file; the scan checks
+2-Step Verification, dormant and admin accounts, third-party and
+AI app access, Drive sharing settings and external group members
+— and answers the same 25-question insurance questionnaire from
+the same export, wherever a question honestly maps to Google
+evidence.</p>
 {err}
+{live_card}
 <div class="card">
   <h2>Upload your Google Workspace export</h2>
   <form method="post" action="/google/scan/upload" enctype="multipart/form-data">
@@ -1843,11 +1899,13 @@ honestly maps to Google evidence.</p>
   </form>
   <p class="small"><a href="/google/how-to-export">How to export</a>
   explains the exact schema and where each part comes from (Admin
-  SDK / GAM-style export). Honest limits up front: there is no live
-  Google connection in this version, Drive item-level permission
-  lists are not in the export (domain sharing settings are), and
-  questions with no Google equivalent — Conditional Access is one —
-  answer "Evidence missing" rather than borrowing a number.</p>
+  SDK / GAM-style export). Honest limits up front: the live
+  connection is code-complete but not switched on until the owner
+  setup is done — <a href="/google/live-connection">its status
+  page</a> says which — Drive item-level permission lists are not
+  in the export (domain sharing settings are), and questions with
+  no Google equivalent — Conditional Access is one — answer
+  "Evidence missing" rather than borrowing a number.</p>
 </div>
 <div class="card">
   <h2>Or run the demo Google domain</h2>
@@ -1871,8 +1929,10 @@ def google_export_page():
 domain's settings, produced by <strong>your own admin</strong> with
 Google's own tools. Nothing connects to your domain from this
 site, there is no Google sign-in here, and no Google credential is
-ever collected — a live connection does not exist in this version
-and is not promised here.</p>
+ever collected. A live connection option is built in code and
+described on the <a href="/google/live-connection">Google live
+connection page</a> — until the owner setup switches it on, this
+export is how scans run.</p>
 
 <div class="card">
   <h2>The collector outline</h2>
@@ -1931,6 +1991,17 @@ and is not promised here.</p>
   <p>The demo domain on this page is a complete worked example of
   the exact shape.</p>
 </div>
+
+<div class="card">
+  <h2>Prefer not to export by hand?</h2>
+  <p>A <a href="/google/live-connection">live connection</a> is
+  built for this scan: your super admin authorizes our service
+  account once, in your own Admin console, and the same snapshot
+  is then read directly. Its status page says plainly whether it
+  is switched on yet; the
+  <a href="/google/connect">connect page</a> carries the steps
+  and the exact scope list.</p>
+</div>
 <p class="small">{HONESTY_LINE}</p>
 """
     return page("How to export your Google Workspace snapshot", body)
@@ -1938,6 +2009,23 @@ and is not promised here.</p>
 
 def google_results_page(record):
     s = record["summary"]
+    if record.get("source") == "google-live":
+        honesty_note = """<p>Every item above is an issue to review,
+  found by deterministic checks against what the live connection
+  returned. This scan read the domain through a service account
+  the domain's own admin authorized: domain Drive sharing
+  settings, the less-secure-app setting and the password policy
+  are owner-stated where they appear (the Directory API does not
+  expose them), per-user mail forwarding is not read on this
+  path, and anything the connection did not return is reported
+  as evidence missing, never assumed.</p>"""
+    else:
+        honesty_note = """<p>Every item above is an issue to review,
+  found by deterministic checks against the export provided. This
+  scan is export-based: it has no live connection to Google, sees
+  domain sharing settings rather than file-level permission
+  lists, and reports anything the export does not contain as
+  evidence missing, never assumed.</p>"""
     body = f"""
 <h1>Google Workspace scan results</h1>
 <p>Domain: <strong>{escape(record['firm'])}</strong><br>
@@ -1991,16 +2079,217 @@ Scanned: {escape(record['timestamp'])}</p>
 
 <div class="card">
   <h2>Honesty note</h2>
-  <p>Every item above is an issue to review, found by deterministic
-  checks against the export provided. This scan is export-based:
-  it has no live connection to Google, sees domain sharing
-  settings rather than file-level permission lists, and reports
-  anything the export does not contain as evidence missing, never
-  assumed.</p>
+  {honesty_note}
   <p class="small">{escape(m365.STAMP)}</p>
 </div>
 """
     return page("Google Workspace scan results", body)
+
+
+# ---------------------------------------------------------------------------
+# Google live connection pages — domain-wide delegation
+# (google_connect.py)
+# ---------------------------------------------------------------------------
+
+def google_live_connection_page():
+    cfg = google_connect.config()
+    if cfg["configured"]:
+        status = f"""
+<div class="deadline">
+  <strong>Status, plainly:</strong> setup is complete on this server —
+  the service account is configured, so the live connection is
+  switched on. A domain is connected only when its own super
+  admin authorizes our service account in their Admin console and
+  registers the domain on the
+  <a href="/google/connect">Google connect page</a>; until that
+  moment we can see nothing of it. The export path
+  (<a href="/google/how-to-export">how that works</a>) remains
+  available.
+</div>
+<p>Uploading an export works, but it is a snapshot of one day. A
+standing, read-only connection is what lets the same scan run
+against the domain as it is now. This is exactly what the
+connection requires:</p>"""
+    else:
+        remaining = "".join(
+            f"<li><code>{escape(name)}</code></li>"
+            for name in cfg["missing_config"])
+        status = f"""
+<div class="deadline">
+  <strong>Status, plainly:</strong> setup is pending. The live
+  connection code is built, but it is <strong>not switched on</strong>
+  in this version because the service account is not configured on
+  this server yet. {PRODUCT} runs Google scans today on an uploaded
+  export (<a href="/google/how-to-export">how that works</a>) —
+  nothing on this site connects to your domain, and nothing here
+  can.
+  <p>What remains, on the product owner's side (SETUP-GOOGLE.md
+  has the full walkthrough):</p>
+  <ol>
+    <li>Create a Google Cloud project, enable the Admin SDK API,
+    and create a service account.</li>
+    <li>Create a key for that service account.</li>
+    <li>Add these environment variables on the host (Render) and
+    restart the service:
+    <ul>{remaining}</ul></li>
+  </ol>
+  <p>Until then, the <a href="/google/connect">Google connect
+  page</a> stays off and says the same thing this page does.</p>
+</div>
+<p>Uploading an export works, but it is a snapshot of one day. A
+standing, read-only connection is what lets the same scan run
+against the domain as it is now. This is exactly what that
+connection will require, so you can judge it before it exists:</p>"""
+    body = f"""
+<h1>The Google live connection — how it works</h1>
+{status}
+
+<div class="card">
+  <h2>Step 1 — we create a service account</h2>
+  <p>{PRODUCT} owns a service account in its own Google Cloud
+  project, with a fixed, published list of <strong>read-only</strong>
+  scopes: directory users, groups and membership, customer info,
+  and the third-party app list for each user. By itself that
+  account can read <strong>nothing</strong> in any customer domain.</p>
+</div>
+<div class="card">
+  <h2>Step 2 — your admin authorizes it, not us</h2>
+  <p>A super admin <strong>from your own firm</strong> opens Admin
+  console → Security → Access and data control → API controls →
+  Domain-wide delegation, and authorizes our service account's
+  client ID with the exact scope list — the same flow Google
+  itself designs for domain-wide tools. Authorization cannot be
+  granted by us, by a salesperson, or by a regular user. Until
+  that moment, we can see nothing.</p>
+</div>
+<div class="card">
+  <h2>Step 3 — the same scan, read directly</h2>
+  <p>With delegation in place, the app impersonates the admin
+  email you registered, builds the same snapshot the export
+  produces today, and runs the identical checks — same engine,
+  same reports. What Google's Directory API cannot return (the
+  domain's Drive sharing setting, per-user mail forwarding) is
+  reported as not covered or owner-stated, never invented.</p>
+</div>
+<div class="card">
+  <h2>Step 4 — you can revoke it any time</h2>
+  <p>Deleting that one delegation entry in your Admin console
+  ends all access immediately, by your admin, without asking us.
+  Nothing on our side can restore it.</p>
+</div>
+
+<div class="notice">
+  <strong>Standing rules, live or not:</strong> we never collect or
+  store Google passwords — there is no password field anywhere in
+  this product. One scope deserves a plain word:
+  <code>admin.directory.user.security</code> (the third-party app
+  list) has no read-only variant at Google — it can technically
+  also revoke a user's app tokens. We only ever read with it, and
+  it is requested because there is no narrower way to inventory
+  the apps your users have authorized.
+</div>
+<p class="small">{HONESTY_LINE}</p>
+"""
+    return page("The Google live connection", body)
+
+
+def google_connect_page(message=None):
+    cfg = google_connect.config()
+    notice = (f'<div class="notice">{escape(message)}</div>'
+              if message else "")
+    if not cfg["configured"]:
+        remaining = "".join(
+            f"<li><code>{escape(name)}</code></li>"
+            for name in cfg["missing_config"])
+        body = f"""
+<h1>Connect your Google Workspace domain</h1>
+{notice}
+<div class="deadline">
+  <strong>Setup is pending.</strong> The live connection is switched
+  off until the product owner finishes the service account setup
+  on this server, so this page cannot register a domain and
+  nothing has been sent to Google. What remains:
+  <ul>{remaining}</ul>
+  See <a href="/google/live-connection">how the Google live
+  connection works</a> for the full picture. In the meantime the
+  <a href="/google">export-based Google scan</a> works exactly as
+  before.
+</div>
+<p class="small">{HONESTY_LINE}</p>
+"""
+        return page("Connect your Google Workspace domain", body)
+
+    scopes = "".join(
+        f"<li><code>{escape(s)}</code></li>"
+        for s in google_connect.READ_ONLY_SCOPES)
+    connections = google_connect.load_connections()
+    if connections:
+        rows = []
+        for conn in connections:
+            domain = escape(conn.get("domain", ""))
+            rows.append(f"""
+<div class="card">
+  <p>Domain: <code>{domain}</code><br>
+  Admin email impersonated for reads:
+  {escape(conn.get('admin_email', ''))}<br>
+  Authorized: {escape(conn.get('authorized_at', ''))}</p>
+  <form method="post" action="/google/connect/scan">
+    <input type="hidden" name="domain" value="{domain}">
+    <button type="submit">Run a live scan for this domain</button>
+  </form>
+</div>""")
+        connected_html = ("<h2>Connected Google domains</h2>"
+                          + "".join(rows))
+    else:
+        connected_html = ("<h2>Connected Google domains</h2>"
+                          "<p>None yet. The first domain appears "
+                          "here after its own admin authorizes the "
+                          "delegation and it validates.</p>")
+    body = f"""
+<h1>Connect your Google Workspace domain</h1>
+{notice}
+<p>Connecting happens in your own Admin console, not on a consent
+screen we control: a super admin <strong>from your firm</strong>
+authorizes our service account once, with the exact scope list
+below, and then registers the domain here so we can prove the
+delegation works. We cannot grant it, pre-approve it, or see
+anything before that moment.</p>
+<div class="card">
+  <h2>Step 1 — authorize in your Admin console</h2>
+  <p>Admin console → Security → Access and data control → API
+  controls → <strong>Domain-wide delegation → Add new</strong>.
+  Paste this client ID:</p>
+  <p><code>{escape(cfg['sa_client_id'])}</code></p>
+  <p>…and exactly these scopes (comma-separated, as the console
+  asks for them):</p>
+  <ul>{scopes}</ul>
+  <p>All are reads. One plain word, repeated from the status
+  page: <code>admin.directory.user.security</code> has no
+  read-only variant at Google — it can technically also revoke a
+  user's app tokens; we only ever read the app list with it.
+  Deleting this delegation entry later revokes all access
+  immediately, without asking us.</p>
+</div>
+<div class="card">
+  <h2>Step 2 — register the domain here</h2>
+  <p>Tell us the domain and the admin email the connection should
+  impersonate for reads (a real admin in your domain; a dedicated
+  reporting admin is a good choice). We immediately make one
+  read-only call to prove the delegation answers; <strong>only a
+  domain that validates is recorded</strong> — a failed check
+  records nothing.</p>
+  <form method="post" action="/google/connect">
+    <label for="domain">Google Workspace domain</label>
+    <input type="text" id="domain" name="domain" placeholder="firm.ca" required>
+    <label for="admin_email">Admin email to impersonate for reads</label>
+    <input type="email" id="admin_email" name="admin_email" placeholder="admin@firm.ca" required>
+    <button type="submit">Validate and connect this domain</button>
+  </form>
+</div>
+{connected_html}
+<p class="small">{HONESTY_LINE}</p>
+"""
+    return page("Connect your Google Workspace domain", body)
 
 
 # ---------------------------------------------------------------------------
@@ -2136,6 +2425,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, google_landing_page())
         elif path == "/google/how-to-export":
             self._send(200, google_export_page())
+        elif path == "/google/live-connection":
+            self._send(200, google_live_connection_page())
+        elif path == "/google/connect":
+            self._send(200, google_connect_page(
+                message=query.get("msg", [""])[0] or None))
         elif path.startswith("/google/results/"):
             record = load_scan(path[len("/google/results/"):])
             if record is None \
@@ -2206,6 +2500,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/connect/scan":
             self._handle_connect_scan(form)
             return
+        if path == "/google/connect":
+            self._handle_google_connect(form)
+            return
+        if path == "/google/connect/scan":
+            self._handle_google_connect_scan(form)
+            return
         if path == "/founding":
             name = (form.get("name") or "").strip()
             email = (form.get("email") or "").strip()
@@ -2261,6 +2561,47 @@ class Handler(BaseHTTPRequestHandler):
             return
         record = run_and_store(outcome["snapshot"], "graph")
         self._send(200, results_page(record))
+
+    def _handle_google_connect(self, form):
+        domain = (form.get("domain") or "").strip()
+        admin_email = (form.get("admin_email") or "").strip()
+        ok, detail = google_connect.validate_connection(
+            domain, admin_email)
+        if ok:
+            self._send(200, google_connect_page(
+                f"Connected: {detail.get('domain', domain)} "
+                "validated against Google and recorded. It is "
+                "listed below, and its live scan can be run from "
+                "this page."))
+            return
+        self._send(200, google_connect_page(
+            f"Not connected. {detail} Nothing was recorded."))
+
+    def _handle_google_connect_scan(self, form):
+        cfg = google_connect.config()
+        if not cfg["configured"]:
+            self._send(200, google_connect_page())
+            return
+        domain = (form.get("domain") or "").strip().lower()
+        if not domain \
+                or google_connect.get_connection(domain) is None:
+            self._send(400, error_page(
+                "Unknown domain",
+                "That domain has not been authorized and "
+                "validated, so there is no live connection to "
+                "scan. Connect it first from the Google connect "
+                "page."))
+            return
+        try:
+            outcome = google_connect.scan_domain(domain)
+        except google_connect.GoogleError as exc:
+            self._send(502, error_page(
+                "Google could not be reached",
+                str(exc)))
+            return
+        record = run_google_and_store(outcome["snapshot"],
+                                      "google-live")
+        self._send(200, google_results_page(record))
 
     def _handle_upload(self):
         length = int(self.headers.get("Content-Length") or 0)
