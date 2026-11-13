@@ -173,6 +173,10 @@
       "userPrincipalName": "mia_external@bookkeepingpartner.example"
     }
   ],
+  "exportCoverage": {
+    "mailboxesChecked": 6,
+    "mailboxesSkipped": 0
+  },
   "sharingInventory": [
     {
       "id": "site-client-files",
