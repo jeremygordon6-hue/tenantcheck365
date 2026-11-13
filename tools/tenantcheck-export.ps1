@@ -46,6 +46,15 @@
   * How broadly a guest account can reach inside the tenant is not
     exposed by Graph. guestAccessLevel is written as null; the scan
     never flags a guest on a guess. Review guest access manually.
+  * For the Copilot oversharing audit, the script reads site-level
+    and library-root (drive root) permission lists only. Sharing
+    links attached to individual files or folders below that level
+    are NOT enumerated - that needs a per-item crawl of every file.
+    A clean audit is therefore not proof that no file-level link
+    exists, and the report says so.
+  * Whether guests may re-share a site's content is not exposed by
+    Graph. guestReshareAllowed is written as null in every sharing
+    inventory item; that check stays silent rather than guessing.
   * A cloud tenant's password length/complexity values are not
     tenant-configurable in Microsoft Entra ID, so Graph does not
     return them. The script writes the Entra platform values
@@ -83,6 +92,9 @@ $Scopes = @(
     "Policy.Read.All",
     "AuditLog.Read.All",
     "Organization.Read.All",
+    "Sites.Read.All",    # site and library PERMISSION LISTS for the
+                         # Copilot oversharing audit. Permission
+                         # settings only - never file contents.
     "Mail.Read"          # used ONLY for inbox rule definitions (rule
                          # settings such as forwarding targets). The
                          # script never reads message contents.
@@ -379,6 +391,209 @@ try {
 }
 Write-Host "  App grants: $($grantsOut.Count) inventoried."
 
+# -------------------------------------------------------- sharing inventory -
+# Per-site / per-library permission digest for the Copilot
+# oversharing audit. Reads site permission lists and each site's
+# default library (drive) root permission list, plus drive ownership
+# and the OneDrive root permissions of DISABLED accounts (a leaver's
+# drive keeps its sharing after the account is switched off).
+# Permission settings only - file contents are never read, and
+# sharing links on individual files below the library root are not
+# enumerated (see the header notes).
+function Get-GraphProp {
+    param($Obj, [string]$Name)
+    if ($null -eq $Obj) { return $null }
+    if ($Obj -is [System.Collections.IDictionary]) {
+        if ($Obj.Contains($Name)) { return $Obj[$Name] }
+        return $null
+    }
+    $prop = $Obj.PSObject.Properties[$Name]
+    if ($null -ne $prop) { return $prop.Value }
+    return $null
+}
+
+function Get-GraphCollection {
+    param([string]$Uri)
+    $items = New-Object System.Collections.Generic.List[object]
+    $next = $Uri
+    while (-not [string]::IsNullOrWhiteSpace($next)) {
+        $resp = Invoke-MgGraphRequest -Method GET -Uri $next -ErrorAction Stop
+        foreach ($v in @(Get-GraphProp $resp "value")) {
+            if ($null -ne $v) { $items.Add($v) }
+        }
+        $next = Get-GraphProp $resp "@odata.nextLink"
+    }
+    return $items
+}
+
+$userEnabledById = @{}
+$guestIdSet = New-Object System.Collections.Generic.HashSet[string]
+foreach ($u in $graphUsers) {
+    $userEnabledById[$u.Id] = [bool]$u.AccountEnabled
+    if ("$($u.UserType)" -eq "Guest") { [void]$guestIdSet.Add($u.Id) }
+}
+
+function Read-SharingDigest {
+    param([object[]]$Permissions)
+    $digest = @{
+        AnyoneLinks = 0; AnyoneAccess = $null
+        OrgLinks = 0; OrgAccess = $null
+        EveryoneAccess = $null; EeeuAccess = $null
+        Owners = New-Object System.Collections.Generic.List[object]
+        GuestIds = New-Object System.Collections.Generic.HashSet[string]
+    }
+    foreach ($p in @($Permissions)) {
+        if ($null -eq $p) { continue }
+        $roles = @(Get-GraphProp $p "roles")
+        $link = Get-GraphProp $p "link"
+        if ($null -ne $link) {
+            $scope = "$(Get-GraphProp $link 'scope')"
+            $access = if ("$(Get-GraphProp $link 'type')" -eq "edit") { "edit" } else { "view" }
+            if ($scope -eq "anonymous") {
+                $digest.AnyoneLinks++
+                if ($access -eq "edit" -or $null -eq $digest.AnyoneAccess) { $digest.AnyoneAccess = $access }
+            } elseif ($scope -eq "organization") {
+                $digest.OrgLinks++
+                if ($access -eq "edit" -or $null -eq $digest.OrgAccess) { $digest.OrgAccess = $access }
+            }
+            continue
+        }
+        $g2 = Get-GraphProp $p "grantedToV2"
+        if ($null -eq $g2) { $g2 = Get-GraphProp $p "grantedTo" }
+        if ($null -eq $g2) { continue }
+        $puser = Get-GraphProp $g2 "user"
+        if ($null -eq $puser) { continue }
+        $dname = "$(Get-GraphProp $puser 'displayName')"
+        $uid = "$(Get-GraphProp $puser 'id')"
+        $access = if ($roles -contains "write") { "edit" } else { "read" }
+        if ($dname -eq "Everyone except external users") {
+            if ($access -eq "edit" -or $null -eq $digest.EeeuAccess) { $digest.EeeuAccess = $access }
+        } elseif ($dname -eq "Everyone") {
+            if ($access -eq "edit" -or $null -eq $digest.EveryoneAccess) { $digest.EveryoneAccess = $access }
+        }
+        if (($roles -contains "owner") -and $uid -ne "") {
+            $digest.Owners.Add(@{ Id = $uid; DisplayName = $dname })
+        }
+        if ($uid -ne "" -and $guestIdSet.Contains($uid)) {
+            [void]$digest.GuestIds.Add($uid)
+        }
+    }
+    return $digest
+}
+
+function Merge-SharingDigest {
+    param($Into, $From)
+    $Into.AnyoneLinks += $From.AnyoneLinks
+    if ($From.AnyoneAccess -eq "edit" -or $null -eq $Into.AnyoneAccess) { $Into.AnyoneAccess = $From.AnyoneAccess }
+    $Into.OrgLinks += $From.OrgLinks
+    if ($From.OrgAccess -eq "edit" -or $null -eq $Into.OrgAccess) { $Into.OrgAccess = $From.OrgAccess }
+    if ($From.EveryoneAccess -eq "edit" -or $null -eq $Into.EveryoneAccess) { $Into.EveryoneAccess = $From.EveryoneAccess }
+    if ($From.EeeuAccess -eq "edit" -or $null -eq $Into.EeeuAccess) { $Into.EeeuAccess = $From.EeeuAccess }
+    foreach ($o in $From.Owners) { $Into.Owners.Add($o) }
+    foreach ($g in $From.GuestIds) { [void]$Into.GuestIds.Add($g) }
+    return $Into
+}
+
+function New-SharingItem {
+    param([string]$Id, [string]$Kind, [string]$DisplayName, $WebUrl,
+          $Digest, $OwnerName, $OwnerEnabled)
+    return [ordered]@{
+        id                                 = $Id
+        kind                               = $Kind
+        displayName                        = $DisplayName
+        webUrl                             = $WebUrl
+        ownerDisplayName                   = $OwnerName
+        ownerAccountEnabled                = $OwnerEnabled
+        anyoneLinks                        = $Digest.AnyoneLinks
+        anyoneLinkAccess                   = $Digest.AnyoneAccess
+        organizationLinks                  = $Digest.OrgLinks
+        organizationLinkAccess             = $Digest.OrgAccess
+        everyoneAccess                     = $Digest.EveryoneAccess
+        everyoneExceptExternalUsersAccess  = $Digest.EeeuAccess
+        guestCount                         = $Digest.GuestIds.Count
+        # Graph does not expose whether guests may re-share; null
+        # keeps that check silent instead of guessed.
+        guestReshareAllowed                = $null
+    }
+}
+
+$sharingOut = New-Object System.Collections.Generic.List[object]
+$sitesReadable = $true
+$graphSites = @()
+try {
+    $graphSites = @(Get-MgSite -All -ErrorAction Stop -Property @("Id","DisplayName","WebUrl"))
+} catch {
+    $sitesReadable = $false
+    Write-Host "  Note: SharePoint sites could not be read"
+    Write-Host "  ($($_.Exception.Message)). The sharing inventory will"
+    Write-Host "  be empty and the Copilot audit will report itself"
+    Write-Host "  as not covered rather than passed."
+    $DefaultedAnswers.Add("sharingInventory (site permission lists could not be read; Copilot oversharing audit not covered)")
+}
+foreach ($site in $graphSites) {
+    $digest = Read-SharingDigest @()
+    try {
+        $sitePerms = Get-GraphCollection "https://graph.microsoft.com/v1.0/sites/$($site.Id)/permissions"
+        $digest = Merge-SharingDigest $digest (Read-SharingDigest @($sitePerms))
+    } catch {}
+    try {
+        $drivePerms = Get-GraphCollection "https://graph.microsoft.com/v1.0/sites/$($site.Id)/drive/root/permissions"
+        $digest = Merge-SharingDigest $digest (Read-SharingDigest @($drivePerms))
+    } catch {}
+    $ownerName = $null
+    $ownerEnabled = $null
+    if ($digest.Owners.Count -gt 0) {
+        $ownerName = $digest.Owners[0].DisplayName
+        if ($userEnabledById.ContainsKey($digest.Owners[0].Id)) {
+            $ownerEnabled = $userEnabledById[$digest.Owners[0].Id]
+        }
+    } else {
+        # Group-connected sites keep their owners on the group, not
+        # in the site permission lists; the drive owner points at it.
+        try {
+            $drive = Invoke-MgGraphRequest -Method GET -ErrorAction Stop `
+                -Uri "https://graph.microsoft.com/v1.0/sites/$($site.Id)/drive"
+            $driveOwner = Get-GraphProp (Get-GraphProp $drive "owner") "user"
+            $ownerGroup = Get-GraphProp (Get-GraphProp $drive "owner") "group"
+            if ($null -ne $driveOwner) {
+                $ownerName = "$(Get-GraphProp $driveOwner 'displayName')"
+                $oid = "$(Get-GraphProp $driveOwner 'id')"
+                if ($userEnabledById.ContainsKey($oid)) { $ownerEnabled = $userEnabledById[$oid] }
+            } elseif ($null -ne $ownerGroup) {
+                $gid = "$(Get-GraphProp $ownerGroup 'id')"
+                $groupOwners = Get-GraphCollection "https://graph.microsoft.com/v1.0/groups/$gid/owners"
+                if ($groupOwners.Count -gt 0) {
+                    $ownerName = "$(Get-GraphProp $groupOwners[0] 'displayName')"
+                    $oid = "$(Get-GraphProp $groupOwners[0] 'id')"
+                    if ($userEnabledById.ContainsKey($oid)) { $ownerEnabled = $userEnabledById[$oid] }
+                }
+            }
+        } catch {}
+    }
+    $sharingOut.Add((New-SharingItem -Id $site.Id -Kind "sharepoint-site" `
+        -DisplayName "$($site.DisplayName)" -WebUrl $site.WebUrl `
+        -Digest $digest -OwnerName $ownerName -OwnerEnabled $ownerEnabled))
+}
+# OneDrive drives whose owner account is disabled: the content and
+# its sharing outlive the account, unreviewed.
+foreach ($u in $graphUsers) {
+    if ([bool]$u.AccountEnabled) { continue }
+    if ("$($u.UserType)" -eq "Guest") { continue }
+    try {
+        $rootPerms = Get-GraphCollection "https://graph.microsoft.com/v1.0/users/$($u.Id)/drive/root/permissions"
+        $digest = Read-SharingDigest @($rootPerms)
+        $sharingOut.Add((New-SharingItem -Id "drive-$($u.Id)" -Kind "onedrive" `
+            -DisplayName "OneDrive - $($u.DisplayName)" -WebUrl $null `
+            -Digest $digest -OwnerName $u.DisplayName -OwnerEnabled $false))
+    } catch {
+        # No OneDrive on this account, or no access to it.
+        continue
+    }
+}
+if ($sitesReadable) {
+    Write-Host "  Sharing inventory: $($sharingOut.Count) sites and drives read (permission lists only)."
+}
+
 # ----------------------------------------------------------- tenant settings -
 $caPolicies = @()
 $caReadable = $true
@@ -496,11 +711,12 @@ $snapshot = [ordered]@{
         firm_size_seats = $enabledMembers.Count
         label          = "Exported from a live tenant by tenantcheck-export.ps1, run by the firm's own admin. Findings cover only what the export contains."
         snapshot_date  = (Get-Date -Format "yyyy-MM-dd")
-        source_shape   = "Built by tools/tenantcheck-export.ps1 from Microsoft Graph (users, authentication method registrations, directory role assignments, inbox rules, OAuth2 permission grants, service principals, Conditional Access policies, organization) plus owner-stated answers entered during the script run."
+        source_shape   = "Built by tools/tenantcheck-export.ps1 from Microsoft Graph (users, authentication method registrations, directory role assignments, inbox rules, OAuth2 permission grants, service principals, Conditional Access policies, organization, site and library permission lists) plus owner-stated answers entered during the script run."
     }
     users = @($usersOut)
     inboxRules = @($rulesOut)
     oauthGrants = @($grantsOut)
+    sharingInventory = @($sharingOut)
     tenantSettings = [ordered]@{
         externalSharingCapability = $sharingCapability
         legacyAuthProtocols       = @("POP3", "IMAP4", "Authenticated SMTP")
@@ -539,7 +755,7 @@ if (-not [System.IO.Path]::IsPathRooted($outPath)) {
 
 Write-Host ""
 Write-Host "Done. Snapshot written to: $outPath"
-Write-Host "  $($usersOut.Count) users, $($rulesOut.Count) inbox rules, $($grantsOut.Count) app grants."
+Write-Host "  $($usersOut.Count) users, $($rulesOut.Count) inbox rules, $($grantsOut.Count) app grants, $($sharingOut.Count) sharing inventory items."
 if ($DefaultedAnswers.Count -gt 0) {
     Write-Host ""
     Write-Host "Answers recorded as 'no evidence' because they were not"
