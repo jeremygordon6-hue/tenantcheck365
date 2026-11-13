@@ -23,6 +23,27 @@
   the build environment, so these additions carry the same
   unverified-against-a-real-tenant caveat as the rest of the
   script.)
+## Export script — fix pass notes (2026-11-13)
+
+- **Run instructions:** administrators are told to run
+  `Unblock-File -LiteralPath .\tenantcheck-export.ps1`, then
+  `Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned`,
+  then `.\tenantcheck-export.ps1`. The older
+  `powershell -ExecutionPolicy Bypass` instruction is gone: Bypass
+  turns script checks off for the run, and process-scoped
+  RemoteSigned is enough for a local script.
+- **Least-privilege scope:** the script asks for
+  `MailboxSettings.Read` to list inbox rules (rule settings such as
+  forwarding targets — never message contents). That is Microsoft's
+  least-privileged permission for listing inbox rules; the broader
+  `Mail.Read` scope from earlier versions also covers message
+  contents and is no longer requested.
+- **Skipped mailboxes are counted:** the snapshot carries an
+  `exportCoverage` field (`mailboxesChecked`, `mailboxesSkipped`).
+  A mailbox whose rules cannot be read is counted as skipped, and
+  the scan's insurance answer about email forwarding then reports
+  evidence missing for those mailboxes — never "no rules found".
+
 - `sample-script-output.json` — a fixture in exactly the shape the
   script emits (same sections, same field names, same null conventions
   for data Graph cannot supply), for a small fictional accounting firm.
